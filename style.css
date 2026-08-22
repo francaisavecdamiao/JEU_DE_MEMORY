@@ -71,16 +71,15 @@ h3 {
 /* Campos de Texto */
 .input-field {
   width: 100%;
-  padding: 14px;
+  padding: 12px;
   font-family: 'Nunito', sans-serif;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   border: 2px solid var(--border);
   border-radius: var(--radius-sm);
   outline: none;
   background: #FAF8F5;
   text-align: center;
-  transition: border-color 0.2s;
 }
 
 .input-field:focus {
@@ -88,7 +87,7 @@ h3 {
   background: #FFF;
 }
 
-/* Botões Estilo 3D */
+/* Botões 3D */
 .btn {
   border: none;
   border-radius: var(--radius-md);
@@ -139,7 +138,7 @@ h3 {
   background: var(--bg);
   border: 2px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 14px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -178,7 +177,6 @@ h3 {
   padding: 6px;
   border-radius: 6px;
   border: 1px solid var(--border);
-  outline: none;
   background: var(--bg);
 }
 
@@ -189,28 +187,76 @@ h3 {
   text-align: left;
 }
 
-/* Tabuleiro de Cartas */
+/* Upload Preview */
+.img-preview {
+  width: 100%;
+  height: 50px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: #f0f0f0;
+  border: 1px solid var(--border);
+}
+
+/* =========================================================
+   MECANISMO DA CARTA (VIRADA / FLIP 3D)
+   ========================================================= */
 .memory-card {
-  background: var(--purple);
-  border-radius: var(--radius-sm);
-  box-shadow: 0 4px 0 var(--purple-dark);
   aspect-ratio: 1;
+  perspective: 1000px;
+  cursor: pointer;
+}
+
+.card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  text-align: center;
+  transition: transform 0.5s;
+  transform-style: preserve-3d;
+}
+
+/* Quando clicada/virada */
+.memory-card.flipped .card-inner,
+.memory-card.matched .card-inner {
+  transform: rotateY(180deg);
+}
+
+/* Verso e Frente da Carta */
+.card-front, .card-back {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
-  font-weight: 800;
-  font-size: 14px;
-  cursor: pointer;
-  user-select: none;
   padding: 6px;
-  text-align: center;
   word-break: break-word;
 }
 
-.memory-card img {
+/* VERSO (Virada para baixo - Escondida) */
+.card-back {
+  background: var(--purple);
+  box-shadow: 0 4px 0 var(--purple-dark);
+  color: white;
+  font-size: 24px;
+}
+
+/* FRENTE (Revelada ao clicar) */
+.card-front {
+  background: white;
+  border: 2px solid var(--purple);
+  box-shadow: 0 4px 0 var(--purple-dark);
+  transform: rotateY(180deg);
+  color: var(--text);
+  font-weight: 800;
+  font-size: 14px;
+}
+
+.card-front img {
   max-width: 90%;
   max-height: 90%;
   object-fit: contain;
-  border-radius: 4px;
 }
