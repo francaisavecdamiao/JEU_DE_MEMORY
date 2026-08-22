@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Jogo da Memória Ao Vivo — Aventura em Francês</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --green: #58CC02;
+    --green-dark: #46A302;
+    --blue: #1CB0F6;
+    --blue-dark: #1899D6;
+    --gold: #FFC800;
+    --gold-dark: #E6B400;
+    --red: #FF4B4B;
+    --red-dark: #EA2B2B;
+    --purple: #CE82FF;
+    --purple-dark: #A559D6;
+    --text: #3C3C3C;
+    --text-light: #6b7280;
+    --bg: #F7F9FA;
+    --card: #FFFFFF;
+    --border: #E5E5E5;
+    --radius-lg: 20px;
+    --radius-md: 14px;
+    --radius-sm: 10px;
+  }
+
+  *{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html,body{
+    margin:0; padding:0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Nunito', sans-serif;
+    min-height: 100vh;
+  }
+
+  h1,h2,h3{ font-family:'Baloo 2', sans-serif; margin:0; }
+
+  #page{
+    max-width: 480px;
+    margin: 0 auto;
+    min-height: 100vh;
+    background: var(--bg);
+    display:flex;
+    flex-direction: column;
+    box-shadow: 0 0 40px rgba(0,0,0,0.06);
+  }
+
+  /* ---------- TOPBAR ---------- */
+  #topbar{
+    position: sticky;
+    top:0;
+    z-index: 10;
+    background: var(--card);
+    border-bottom: 2px solid var(--border);
+    padding: 10px 16px 12px;
+  }
+  .topbar-row{
+    display:flex;
+    align-items:center;
+    justify-content: space-between;
+    gap:10px;
+  }
+  .level-label{
+    font-family:'Baloo 2', sans-serif;
+    font-weight:700;
+    font-size: 16px;
+    color: var(--text);
+  }
+  .pin-badge{
+    font-family:'Baloo 2', sans-serif;
+    font-weight:800;
+    font-size: 16px;
+    background: #EBF8FF;
+    color: var(--blue-dark);
+    border: 2px solid var(--blue);
+    border-radius: 999px;
+    padding: 2px 14px;
+  }
+
+  /* ---------- LAYOUT & BOTÕES ---------- */
+  main#content{
+    flex:1;
+    padding: 20px 16px 12px;
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+  }
+
+  .btn{
+    font-family:'Baloo 2', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: .3px;
+    text-transform: uppercase;
+    border: none;
+    border-radius: 16px;
+    padding: 15px 20px;
+    cursor: pointer;
+    color: #fff;
+    background: var(--green);
+    box-shadow: 0 4px 0 var(--green-dark);
+    transition: transform .05s ease, box-shadow .05s ease;
+  }
+  .btn:active:not(:disabled){ transform: translateY(4px); box-shadow: 0 0 0 var(--green-dark); }
+  .btn:disabled{ opacity:.45; cursor:not-allowed; }
+  .btn-blue{ background: var(--blue); box-shadow: 0 4px 0 var(--blue-dark); }
+  .btn-purple{ background: var(--purple); box-shadow: 0 4px 0 var(--purple-dark); }
+  .btn-block{ width:100%; margin-top:auto; position: sticky; bottom: 16px; }
+
+  .footer-space{ flex:1; }
+
+  /* ---------- CARDS ---------- */
+  .card-box{
+    background: var(--card);
+    border: 2px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 24px 20px;
+    text-align:center;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+    animation: popIn .3s ease;
+  }
+
+  .mascot{ font-size: 52px; line-height:1; }
+
+  /* ---------- INPUTS ---------- */
+  .input-field{
+    font-family:'Baloo 2', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    text-align: center;
+    width: 100%;
+    padding: 12px 16px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius-md);
+    outline: none;
+    background: var(--bg);
+  }
+  .input-field:focus{ border-color: var(--blue); background: #fff; }
+
+  /* ---------- CUSTOMIZADOR DE AVATAR ---------- */
+  .avatar-preview{
+    width: 100px;
+    height: 100px;
+    background: #EAF8FF;
+    border: 3px solid var(--blue);
+    border-radius: 50%;
+    margin: 0 auto;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size: 48px;
+    position: relative;
+  }
+  .avatar-controls{
+    display:flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg);
+    border: 2px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 8px 14px;
+  }
+  .control-title{ font-weight:700; font-size:14px; color: var(--text-light); }
+  .btn-sm{ padding: 6px 14px; font-size: 13px; border-radius: 10px; }
+
+  /* ---------- TABULEIRO DO JOGO DA MEMÓRIA ---------- */
+  .memory-grid{
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .memory-card{
+    aspect-ratio: 1;
+    background: var(--card);
+    border: 2px solid var(--border);
+    border-bottom-width: 4px;
+    border-radius: var(--radius-md);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-family:'Baloo 2', sans-serif;
+    font-weight:700;
+    font-size: 18px;
+    cursor:pointer;
+    user-select:none;
+    transition: transform .1s ease, background .2s ease;
+  }
+  .memory-card.flipped{
+    background: #FFF;
+    border-color: var(--blue);
+    color: var(--blue-dark);
+  }
+  .memory-card.matched{
+    background: #EEFAE2;
+    border-color: var(--green);
+    color: var(--green-dark);
+    cursor: default;
+  }
+
+  /* ---------- RANKING AO VIVO ---------- */
+  .ranking-list{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    text-align:left;
+  }
+  .ranking-item{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    background: var(--bg);
+    border: 2px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 8px 12px;
+    font-weight:700;
+  }
+  .ranking-item .rank{
+    font-family:'Baloo 2', sans-serif;
+    font-size: 16px;
+    color: var(--gold-dark);
+    width: 20px;
+  }
+  .ranking-item .score{ margin-left:auto; color: var(--green-dark); font-family:'Baloo 2', sans-serif; }
+
+  @keyframes popIn{
+    from{ opacity:0; transform: translateY(8px); }
+    to{ opacity:1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+
+<div id="page">
+  <div id="topbar">
+    <div class="topbar-row">
+      <span class="level-label" id="tb-title">Jogo da Memória</span>
+      <span class="pin-badge" id="tb-pin" style="display:none;">PIN: ---</span>
+    </div>
+  </div>
+  
+  <main id="content"></main>
+</div>
+
+<script>
+/* =========================================================
+   ESTADO GLOBAL DA APLICAÇÃO
+   ========================================================= */
+const state = {
+  screen: 'select_role', // select_role, enter_pin, host_create, customize_avatar, lobby, game
+  role: null,            // 'teacher' ou 'student'
+  pin: '',
+  studentName: '',
+  avatar: { head: '🧢', face: '🦊' },
+  
+  // Lista de personagens e acessórios simples
+  avatarOptions: {
+    faces: ['🦊', '🐱', '🐶', '🦁', '🐸', 'P1'],
+    heads: ['🧢', '👑', '🎓', '🎀', '🎧', '']
+  },
+  avatarIndexes: { face: 0, head: 0 },
+
+  // Ranking simulado em tempo real
+  players: [
+    { name: 'Você', score: 0, avatar: '🦊🧢' },
+    { name: 'Lucas', score: 0, avatar: '🦁👑' },
+    { name: 'Ana', score: 0, avatar: '🐱🎀' }
+  ],
+
+  // Cartas do Jogo da Memória (Francês - Português)
+  cards: [
+    { id: 1, val: 'Bonjour', pairId: 1 },
+    { id: 2, val: 'Olá', pairId: 1 },
+    { id: 3, val: 'Merci', pairId: 2 },
+    { id: 4, val: 'Obrigado', pairId: 2 },
+    { id: 5, val: 'Chat', pairId: 3 },
+    { id: 6, val: 'Gato', pairId: 3 },
+    { id: 7, val: 'Soleil', pairId: 4 },
+    { id: 8, val: 'Sol', pairId: 4 }
+  ],
+  flippedCards: [],
+  matchedPairs: []
+};
+
+/* =========================================================
+   NAVEGAÇÃO E RENDERIZAÇÃO
+   ========================================================= */
+function setScreen(screenName){
+  state.screen = screenName;
+  render();
+}
+
+function render(){
+  const content = document.getElementById('content');
+  const tbTitle = document.getElementById('tb-title');
+  const tbPin = document.getElementById('tb-pin');
+
+  if(state.pin){
+    tbPin.style.display = 'block';
+    tbPin.innerText = `PIN: ${state.pin}`;
+  } else {
+    tbPin.style.display = 'none';
+  }
+
+  switch(state.screen){
+    case 'select_role':
+      tbTitle.innerText = "Escolha seu Perfil";
+      content.innerHTML = renderSelectRole();
+      break;
+
+    case 'enter_pin':
+      tbTitle.innerText = "Entrar na Sala";
+      content.innerHTML = renderEnterPin();
+      break;
+
+    case 'customize_avatar':
+      tbTitle.innerText = "Crie seu Personagem";
+      content.innerHTML = renderCustomizeAvatar();
+      break;
+
+    case 'host_create':
+      tbTitle.innerText = "Painel do Professor";
+      content.innerHTML = renderHostCreate();
+      break;
+
+    case 'lobby':
+      tbTitle.innerText = "Sala de Espera";
+      content.innerHTML = renderLobby();
+      break;
+
+    case 'game':
+      tbTitle.innerText = "Memória ao Vivo";
+      content.innerHTML = renderGame();
+      break;
+  }
+}
+
+/* =========================================================
+   TEMPLATES DE TELA
+   ========================================================= */
+
+// 1. Seleção de Perfil (Professor x Aluno)
+function renderSelectRole(){
+  return `
+    <div class="card-box">
+      <div class="mascot">🐓</div>
+      <h2>Aventura em Francês</h2>
+      <p style="color:var(--text-light)">Como você deseja acessar o jogo hoje?</p>
+    </div>
+    <div class="footer-space"></div>
+    <button class="btn btn-blue btn-block" onclick="state.role='student'; setScreen('enter_pin')">Entrar com PIN (Aluno)</button>
+    <button class="btn btn-purple btn-block" style="margin-top:0" onclick="state.role='teacher'; state.pin='849201'; setScreen('host_create')">Sou Professor(a)</button>
+  `;
+}
+
+// 2. Tela de PIN (Aluno)
+function renderEnterPin(){
+  return `
+    <div class="card-box">
+      <h2>Entrar no Jogo</h2>
+      <p style="color:var(--text-light)">Digite o PIN de 6 dígitos fornecido pelo professor:</p>
+      <input type="text" maxlength="6" class="input-field" placeholder="000 000" id="pin-input" value="${state.pin}">
+      <input type="text" class="input-field" placeholder="Seu Nome / Apelido" id="name-input" value="${state.studentName}">
+    </div>
+    <div class="footer-space"></div>
+    <button class="btn btn-block" onclick="confirmPin()">Avançar para Personagem</button>
+  `;
+}
+
+function confirmPin(){
+  const pinVal = document.getElementById('pin-input').value;
+  const nameVal = document.getElementById('name-input').value;
+  if(pinVal.length < 6 || !nameVal){
+    alert("Por favor, informe o PIN com 6 dígitos e seu nome.");
+    return;
+  }
+  state.pin = pinVal;
+  state.studentName = nameVal;
+  state.players[0].name = nameVal;
+  setScreen('customize_avatar');
+}
+
+// 3. Customização do Personagem (Aluno)
+function renderCustomizeAvatar(){
+  const face = state.avatarOptions.faces[state.avatarIndexes.face];
+  const head = state.avatarOptions.heads[state.avatarIndexes.head];
+
+  return `
+    <div class="card-box">
+      <h2>Monte seu Avatar</h2>
+      <div class="avatar-preview">
+        <span>${face}</span>
+        <span style="position:absolute; top:-10px;">${head}</span>
+      </div>
+
+      <div class="avatar-controls">
+        <span class="control-title">Rosto/Animal</span>
+        <div>
+          <button class="btn btn-blue btn-sm" onclick="changeAvatar('face', -1)">◄</button>
+          <button class="btn btn-blue btn-sm" onclick="changeAvatar('face', 1)">►</button>
+        </div>
+      </div>
+
+      <div class="avatar-controls">
+        <span class="control-title">Acessório</span>
+        <div>
+          <button class="btn btn-blue btn-sm" onclick="changeAvatar('head', -1)">◄</button>
+          <button class="btn btn-blue btn-sm" onclick="changeAvatar('head', 1)">►</button>
+        </div>
+      </div>
+    </div>
+    <div class="footer-space"></div>
+    <button class="btn btn-block" onclick="state.players[0].avatar = '${face}${head}'; setScreen('lobby')">Pronto! Entrar na Sala</button>
+  `;
+}
+
+function changeAvatar(type, dir){
+  const list = state.avatarOptions[type === 'face' ? 'faces' : 'heads'];
+  let idx = state.avatarIndexes[type] + dir;
+  if(idx < 0) idx = list.length - 1;
+  if(idx >= list.length) idx = 0;
+  state.avatarIndexes[type] = idx;
+  render();
+}
+
+// 4. Painel do Professor (Criação de Sala)
+function renderHostCreate(){
+  return `
+    <div class="card-box">
+      <div class="mascot">🎓</div>
+      <h2>Painel do Professor</h2>
+      <p style="color:var(--text-light)">Sua sala está pronta! Compartilhe o PIN com a turma:</p>
+      <div class="input-field" style="font-size:28px; color:var(--purple-dark); border-color:var(--purple)">${state.pin}</div>
+      <p style="font-size:13px; color:var(--text-light)">Alunos conectados: <strong>3</strong></p>
+    </div>
+    <div class="footer-space"></div>
+    <button class="btn btn-purple btn-block" onclick="setScreen('game')">Iniciar Jogo Ao Vivo</button>
+  `;
+}
+
+// 5. Lobby / Sala de Espera (Aluno)
+function renderLobby(){
+  return `
+    <div class="card-box">
+      <div class="mascot">⏳</div>
+      <h2>Tudo pronto, ${state.studentName}!</h2>
+      <p style="color:var(--text-light)">Aguardando o professor iniciar a partida...</p>
+    </div>
+    <div class="footer-space"></div>
+    <button class="btn btn-block" disabled>Aguardando Início...</button>
+  `;
+}
+
+// 6. Arena do Jogo da Memória + Ranking em Tempo Real
+function renderGame(){
+  const cardsHtml = state.cards.map((c, i) => {
+    const isFlipped = state.flippedCards.includes(i) || state.matchedPairs.includes(c.pairId);
+    const isMatched = state.matchedPairs.includes(c.pairId);
+
+    let cls = 'memory-card';
+    if(isMatched) cls += ' matched';
+    else if(isFlipped) cls += ' flipped';
+
+    return `<div class="${cls}" onclick="flipCard(${i})">${isFlipped ? c.val : '❓'}</div>`;
+  }).join('');
+
+  // Ordena ranking por pontos
+  const sortedPlayers = [...state.players].sort((a,b) => b.score - a.score);
+  const rankingHtml = sortedPlayers.map((p, idx) => `
+    <div class="ranking-item">
+      <span class="rank">#${idx+1}</span>
+      <span>${p.avatar} ${p.name}</span>
+      <span class="score">${p.score} pts</span>
+    </div>
+  `).join('');
+
+  return `
+    <div class="memory-grid">${cardsHtml}</div>
+
+    <div class="card-box" style="margin-top:10px; padding:16px;">
+      <h3 style="text-align:left; font-size:16px;">Ranking ao Vivo 🏆</h3>
+      <div class="ranking-list">${rankingHtml}</div>
+    </div>
+  `;
+}
+
+/* =========================================================
+   LÓGICA DO JOGO DA MEMÓRIA
+   ========================================================= */
+function flipCard(idx){
+  if(state.flippedCards.length === 2 || state.flippedCards.includes(idx)) return;
+
+  const card = state.cards[idx];
+  if(state.matchedPairs.includes(card.pairId)) return;
+
+  state.flippedCards.push(idx);
+  render();
+
+  if(state.flippedCards.length === 2){
+    const [i1, i2] = state.flippedCards;
+    const c1 = state.cards[i1];
+    const c2 = state.cards[i2];
+
+    if(c1.pairId === c2.pairId){
+      // Acertou par
+      state.matchedPairs.push(c1.pairId);
+      state.players[0].score += 10; // Soma pontos ao usuário
+      
+      // Simula outros alunos pontuando aleatoriamente
+      if(Math.random() > 0.5) state.players[1].score += 10;
+      
+      state.flippedCards = [];
+      render();
+    } else {
+      // Errou par
+      setTimeout(() => {
+        state.flippedCards = [];
+        render();
+      }, 900);
+    }
+  }
+}
+
+// Inicializa a interface
+render();
+</script>
+</body>
+</html>
