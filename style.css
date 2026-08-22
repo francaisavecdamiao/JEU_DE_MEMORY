@@ -1,0 +1,216 @@
+:root {
+  --bg: #F4F0EA;
+  --card-bg: #FFFFFF;
+  --purple: #6A4C93;
+  --purple-dark: #4A3368;
+  --blue: #1976D2;
+  --blue-dark: #115293;
+  --green: #2E7D32;
+  --green-dark: #1B5E20;
+  --red: #D32F2F;
+  --red-dark: #9A0007;
+  --text: #2D2A26;
+  --text-light: #6E6A66;
+  --border: #E2DCD5;
+  --radius-lg: 24px;
+  --radius-md: 16px;
+  --radius-sm: 10px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg);
+  font-family: 'Nunito', sans-serif;
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+}
+
+#app {
+  width: 100%;
+  max-width: 500px;
+}
+
+/* Card Principal */
+.card-box {
+  background: var(--card-bg);
+  border: 3px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px 20px;
+  text-align: center;
+  box-shadow: 0 8px 0 var(--border);
+}
+
+.mascot {
+  font-size: 54px;
+  margin-bottom: 8px;
+}
+
+h2 {
+  font-family: 'Baloo 2', cursive;
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--purple);
+  margin-bottom: 6px;
+}
+
+h3 {
+  font-family: 'Baloo 2', cursive;
+  font-size: 18px;
+  margin-top: 14px;
+}
+
+/* Campos de Texto */
+.input-field {
+  width: 100%;
+  padding: 14px;
+  font-family: 'Nunito', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  outline: none;
+  background: #FAF8F5;
+  text-align: center;
+  transition: border-color 0.2s;
+}
+
+.input-field:focus {
+  border-color: var(--purple);
+  background: #FFF;
+}
+
+/* Botões Estilo 3D */
+.btn {
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 14px 20px;
+  font-family: 'Baloo 2', cursive;
+  font-size: 18px;
+  font-weight: 800;
+  color: white;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.btn:active {
+  transform: translateY(4px);
+  box-shadow: 0 0 0 transparent !important;
+}
+
+.btn-block {
+  width: 100%;
+  display: block;
+}
+
+.btn-purple {
+  background: var(--purple);
+  box-shadow: 0 5px 0 var(--purple-dark);
+}
+
+.btn-blue {
+  background: var(--blue);
+  box-shadow: 0 5px 0 var(--blue-dark);
+}
+
+.btn-green {
+  background: var(--green);
+  box-shadow: 0 5px 0 var(--green-dark);
+}
+
+.btn-del {
+  background: var(--red);
+  box-shadow: 0 3px 0 var(--red-dark);
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+
+/* Criador de Pares */
+.pair-card {
+  background: var(--bg);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pair-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: 'Baloo 2', cursive;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-light);
+}
+
+.pair-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.item-box {
+  background: #fff;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.type-select {
+  font-family: 'Nunito', sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  outline: none;
+  background: var(--bg);
+}
+
+.input-sm {
+  font-size: 13px;
+  padding: 8px;
+  border-radius: 8px;
+  text-align: left;
+}
+
+/* Tabuleiro de Cartas */
+.memory-card {
+  background: var(--purple);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 0 var(--purple-dark);
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 800;
+  font-size: 14px;
+  cursor: pointer;
+  user-select: none;
+  padding: 6px;
+  text-align: center;
+  word-break: break-word;
+}
+
+.memory-card img {
+  max-width: 90%;
+  max-height: 90%;
+  object-fit: contain;
+  border-radius: 4px;
+}
