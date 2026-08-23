@@ -64,7 +64,7 @@ const state = {
   avatarUrl: 'assets/MARIE.png',
   score: 0,
   attempts: 0,
-  timeLeft: 30,
+  timeLeft: 20,
   timerInterval: null,
   timeAudioPlayed: false,
   matchedPairsCount: 0,
@@ -418,7 +418,7 @@ function renderVictory() {
    ========================================================= */
 function startTimer() {
   clearInterval(state.timerInterval);
-  state.timeLeft = 30;
+  state.timeLeft = 20;
   state.timeAudioPlayed = false;
 
   state.timerInterval = setInterval(() => {
@@ -429,7 +429,7 @@ function startTimer() {
 
     if (timerText) timerText.innerText = `⏱️ ${state.timeLeft}s`;
     if (timerBar) {
-      const percentage = (state.timeLeft / 30) * 100;
+      const percentage = (state.timeLeft / 20) * 100;
       timerBar.style.width = `${percentage}%`;
     }
 
