@@ -4,7 +4,9 @@
 const sounds = {
   click: new Audio('soundeffects/click.mp3'),
   ok: new Audio('soundeffects/ok.mp3'),
-  falha: new Audio('soundeffects/falha.mp3')
+  falha: new Audio('soundeffects/falha.mp3'),
+  time: new Audio('soundeffects/time.mp3'),
+  alert: new Audio('soundeffects/alert.mp3')
 };
 
 function playSound(name) {
@@ -27,14 +29,15 @@ const firebaseConfig = {
   appId: "1:123456789:web:abcdef"
 };
 
-// Inicializa Firebase se configurado
 let db = null;
 try {
   if (firebaseConfig.apiKey !== "SUA_API_KEY_AQUI") {
     firebase.initializeApp(firebaseConfig);
     db = firebase.database();
   }
-} catch(e) { console.warn("Firebase não configurado ainda."); }
+} catch (e) {
+  console.warn("Firebase não configurado ainda.");
+}
 
 /* =========================================================
    3. ESTADO GLOBAL DA APLICAÇÃO
@@ -50,9 +53,12 @@ const state = {
   attempts: 0,
   timeLeft: 30,
   timerInterval: null,
+  timeAudioPlayed: false,
   matchedPairsCount: 0,
   isHost: false,
   players: [],
+  currentTurnIndex: 0,
+  activePlayerId: null,
   customPairs: [
     { id: 1, itemA: { type: 'text', value: 'Bonjour' }, itemB: { type: 'text', value: 'Olá' } },
     { id: 2, itemA: { type: 'text', value: 'Merci' }, itemB: { type: 'text', value: 'Obrigado' } }
@@ -89,6 +95,9 @@ function render() {
       break;
     case 'host_lobby':
       app.innerHTML = renderHostLobby();
+      break;
+    case 'teacher_dashboard':
+      app.innerHTML = renderTeacherDashboard();
       break;
     case 'student_join':
       app.innerHTML = renderStudentJoin();
@@ -164,8 +173,8 @@ function renderHostCreate() {
       <h2>Criar Jogo da Memória</h2>
       
       <div style="display:flex; gap:10px; margin-bottom:14px;">
-        <button class="btn btn-blue" style="font-size:12px; padding:8px; flex:1;" onclick="exportPairsJSON()">💾 Exportar Jogo (.JSON)</button>
-        <button class="btn btn-purple" style="font-size:12px; padding:8px; flex:1;" onclick="document.getElementById('import-file').click()">📂 Importar Jogo</button>
+        <button class="btn btn-blue" style="font-size:12px; padding:8px; flex:1;" onclick="exportPairsJSON()">💾 Exportar (.JSON)</button>
+        <button class="btn btn-purple" style="font-size:12px; padding:8px; flex:1;" onclick="document.getElementById('import-file').click()">📂 Importar</button>
         <input type="file" id="import-file" accept=".json" style="display:none;" onchange="importPairsJSON(this)">
       </div>
 
@@ -186,9 +195,10 @@ function renderHostCreate() {
 }
 
 function renderHostLobby() {
-  const playerList = state.players.map(p => `
-    <li style="background:white; padding:8px 12px; border-radius:8px; margin-bottom:6px; font-weight:700;">
-      👤 ${p.name}
+  const playerList = state.players.map((p, idx) => `
+    <li style="background:white; padding:8px 12px; border-radius:8px; margin-bottom:6px; font-weight:700; display:flex; justify-content:space-between;">
+      <span>👤 ${p.name}</span>
+      <span style="font-size:12px; color:var(--text-light);">${idx + 1}º da Fila</span>
     </li>
   `).join('');
 
@@ -209,6 +219,42 @@ function renderHostLobby() {
 
     <div style="margin-top:16px;">
       <button class="btn btn-green btn-block" onclick="playSound('click'); startMultiplayerGame();">🚀 Iniciar Jogo Agora</button>
+    </div>
+  `;
+}
+
+function renderTeacherDashboard() {
+  const playersTable = state.players.map(p => `
+    <tr style="border-bottom: 1px solid var(--border);">
+      <td style="padding:10px; font-weight:700;">👤 ${p.name}</td>
+      <td style="padding:10px; text-align:center; font-weight:800; color:var(--purple);">${p.score || 0} pts</td>
+      <td style="padding:10px; text-align:center;">
+        ${p.name === state.activePlayerId ? '🟢 Jogando' : '⏳ Aguardando'}
+      </td>
+    </tr>
+  `).join('');
+
+  return `
+    <div class="card-box" style="max-width:650px;">
+      <h2>📊 Painel do Professor (Ao Vivo)</h2>
+      <p style="color:var(--text-light); margin-bottom:14px;">PIN da Sala: <strong>${state.pin}</strong></p>
+
+      <table style="width:100%; border-collapse:collapse; margin-top:10px; text-align:left;">
+        <thead>
+          <tr style="background:var(--bg); color:var(--text-light); font-size:13px;">
+            <th style="padding:8px;">Aluno</th>
+            <th style="padding:8px; text-align:center;">Pontuação</th>
+            <th style="padding:8px; text-align:center;">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${playersTable.length > 0 ? playersTable : '<tr><td colspan="3" style="padding:10px; text-align:center;">Sem jogadores salvos</td></tr>'}
+        </tbody>
+      </table>
+
+      <div style="margin-top:20px;">
+        <button class="btn btn-purple btn-block" onclick="generatePDFReport()">📄 Gerar Relatório em PDF</button>
+      </div>
     </div>
   `;
 }
@@ -277,6 +323,8 @@ function updateAvatarDOM() {
 }
 
 function renderGame() {
+  const isMyTurn = state.userName === state.activePlayerId || !db;
+
   const cardsGrid = state.cards.map((c, index) => `
     <div class="memory-card" id="card-${index}" onclick="flipCard(${index})">
       <div class="card-inner">
@@ -295,7 +343,9 @@ function renderGame() {
           <img src="${state.avatarUrl}" class="hud-avatar" alt="Avatar" onerror="this.src='https://via.placeholder.com/40?text=A'">
           <span class="hud-nickname">${state.userName || 'Jogador'}</span>
         </div>
-        <span style="font-weight:700; color:var(--purple);">PIN: ${state.pin}</span>
+        <span style="font-weight:700; color:var(--purple);" id="turn-indicator">
+          ${isMyTurn ? "👉 SEU TURNO!" : `Aguardando: ${state.activePlayerId || '...'}`}
+        </span>
       </div>
 
       <div class="timer-container">
@@ -318,8 +368,7 @@ function renderVictory() {
   return `
     <div class="card-box">
       <div class="mascot">${state.matchedPairsCount === state.customPairs.length ? '🏆' : '⏳'}</div>
-      <h2>${state.matchedPairsCount === state.customPairs.length ? 'Félicitations!' : 'Temps Écoule!'}</h2>
-      <p style="color:var(--text-light)">Fim da partida!</p>
+      <h2>${state.matchedPairsCount === state.customPairs.length ? 'Félicitations!' : 'Fim da Rodada!'}</h2>
 
       <div class="winner-podium">
         <div class="winner-avatar-frame">
@@ -346,11 +395,12 @@ function renderVictory() {
 }
 
 /* =========================================================
-   6. LÓGICA DO TIMER (30 SEGUNDOS)
+   6. LÓGICA DO TIMER E TROCA DE TURNO
    ========================================================= */
 function startTimer() {
   clearInterval(state.timerInterval);
   state.timeLeft = 30;
+  state.timeAudioPlayed = false;
 
   state.timerInterval = setInterval(() => {
     state.timeLeft -= 1;
@@ -364,49 +414,39 @@ function startTimer() {
       timerBar.style.width = `${percentage}%`;
     }
 
+    if (state.timeLeft === 10 && !state.timeAudioPlayed) {
+      playSound('time');
+      state.timeAudioPlayed = true;
+    }
+
     if (state.timeLeft <= 0) {
       clearInterval(state.timerInterval);
-      playSound('falha');
-      setScreen('victory');
+      playSound('alert');
+
+      if (db && (state.isHost || state.userName === state.activePlayerId)) {
+        passTurnToNextPlayer();
+      } else if (!db) {
+        setScreen('victory');
+      }
     }
   }, 1000);
 }
 
-/* =========================================================
-   7. EXPORTAR / IMPORTAR CONJUNTOS DE PARES (JSON)
-   ========================================================= */
-function exportPairsJSON() {
-  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.customPairs, null, 2));
-  const downloadAnchor = document.createElement('a');
-  downloadAnchor.setAttribute("href", dataStr);
-  downloadAnchor.setAttribute("download", `jogo_memoria_pares.json`);
-  document.body.appendChild(downloadAnchor);
-  downloadAnchor.click();
-  downloadAnchor.remove();
-}
+function passTurnToNextPlayer() {
+  if (!db || !state.pin || state.players.length === 0) return;
 
-function importPairsJSON(input) {
-  const file = input.files[0];
-  if (!file) return;
+  const totalPlayers = state.players.length;
+  const nextIndex = (state.currentTurnIndex + 1) % totalPlayers;
+  const nextPlayer = state.players[nextIndex];
 
-  const reader = new FileReader();
-  reader.onload = function (e) {
-    try {
-      const importedPairs = JSON.parse(e.target.result);
-      if (Array.isArray(importedPairs)) {
-        state.customPairs = importedPairs;
-        render();
-        alert("Jogo importado com sucesso!");
-      }
-    } catch (err) {
-      alert("Arquivo JSON inválido.");
-    }
-  };
-  reader.readAsText(file);
+  db.ref(`rooms/${state.pin}`).update({
+    currentTurnIndex: nextIndex,
+    activePlayerId: nextPlayer.name
+  });
 }
 
 /* =========================================================
-   8. INTEGRAÇÃO MULTIPLAYER FIREBASE
+   7. MULTIPLAYER E SINCRONIZAÇÃO EM TEMPO REAL
    ========================================================= */
 function startHostFlow() {
   state.isHost = true;
@@ -427,26 +467,59 @@ function generateRoomAndPin() {
     db.ref('rooms/' + state.pin).set({
       status: 'waiting',
       cards: state.cards,
+      currentTurnIndex: 0,
+      activePlayerId: '',
       players: {}
     });
 
-    db.ref(`rooms/${state.pin}/players`).on('value', (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        state.players = Object.values(data);
-        if (state.currentScreen === 'host_lobby') render();
-      }
-    });
+    listenRoomUpdates();
   }
 
   setScreen('host_lobby');
 }
 
+function listenRoomUpdates() {
+  if (!db || !state.pin) return;
+
+  db.ref(`rooms/${state.pin}`).on('value', (snapshot) => {
+    const room = snapshot.val();
+    if (!room) return;
+
+    state.cards = room.cards || [];
+    state.currentTurnIndex = room.currentTurnIndex || 0;
+    state.activePlayerId = room.activePlayerId || '';
+
+    if (room.players) {
+      // Garante que a ordem de entrada seja mantida
+      const playersArray = Object.values(room.players);
+      state.players = playersArray.sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
+    }
+
+    if (room.status === 'playing') {
+      if (state.isHost && state.currentScreen !== 'teacher_dashboard') {
+        setScreen('teacher_dashboard');
+      } else if (!state.isHost && state.currentScreen !== 'game') {
+        setScreen('game');
+      } else if (!state.isHost) {
+        updateTurnHUD();
+      }
+    } else if (state.currentScreen === 'host_lobby') {
+      render();
+    }
+  });
+}
+
 function startMultiplayerGame() {
-  if (db) {
-    db.ref('rooms/' + state.pin).update({ status: 'playing' });
+  if (db && state.players.length > 0) {
+    const firstPlayer = state.players[0];
+    db.ref('rooms/' + state.pin).update({
+      status: 'playing',
+      currentTurnIndex: 0,
+      activePlayerId: firstPlayer.name
+    });
+  } else if (!db) {
+    setScreen('game');
   }
-  setScreen('game');
 }
 
 function joinRoom() {
@@ -472,23 +545,34 @@ function joinRoom() {
 
   if (db) {
     const playerRef = db.ref(`rooms/${pin}/players/${name}`);
-    playerRef.set({ name: name, avatar: state.avatarUrl, score: 0 });
-
-    db.ref(`rooms/${pin}`).on('value', (snapshot) => {
-      const room = snapshot.val();
-      if (room) {
-        state.cards = room.cards;
-        if (room.status === 'playing' && state.currentScreen !== 'game') {
-          setScreen('game');
-        }
-      }
+    playerRef.set({
+      name: name,
+      avatar: state.avatarUrl,
+      score: 0,
+      joinedAt: Date.now()
     });
+
+    listenRoomUpdates();
   } else {
     setupCards();
     setScreen('game');
   }
 }
 
+function updateTurnHUD() {
+  const isMyTurn = state.userName === state.activePlayerId;
+  const turnIndicator = document.getElementById('turn-indicator');
+  
+  if (turnIndicator) {
+    turnIndicator.innerText = isMyTurn ? "👉 SEU TURNO!" : `Aguardando: ${state.activePlayerId}`;
+  }
+
+  state.isLockBoard = !isMyTurn;
+}
+
+/* =========================================================
+   8. LÓGICA DO JOGO DA MEMÓRIA
+   ========================================================= */
 function setupCards() {
   let cards = [];
   state.customPairs.forEach(p => {
@@ -498,6 +582,81 @@ function setupCards() {
   state.cards = cards.sort(() => Math.random() - 0.5);
 }
 
+function flipCard(index) {
+  if (state.isLockBoard) return;
+  
+  const cardElement = document.getElementById(`card-${index}`);
+  if (!cardElement || cardElement.classList.contains('flipped') || cardElement.classList.contains('matched')) return;
+
+  playSound('click');
+  cardElement.classList.add('flipped');
+  state.flippedCards.push({ index, pairId: state.cards[index].pairId });
+
+  if (state.flippedCards.length === 2) {
+    state.attempts += 1;
+    checkMatch();
+  }
+}
+
+function checkMatch() {
+  state.isLockBoard = true;
+  const [card1, card2] = state.flippedCards;
+
+  if (card1.pairId === card2.pairId) {
+    playSound('ok');
+    document.getElementById(`card-${card1.index}`).classList.add('matched');
+    document.getElementById(`card-${card2.index}`).classList.add('matched');
+    
+    state.score += 10;
+    state.matchedPairsCount += 1;
+
+    if (db) {
+      db.ref(`rooms/${state.pin}/players/${state.userName}`).update({ score: state.score });
+    }
+
+    const scoreEl = document.getElementById('score-display');
+    if (scoreEl) scoreEl.innerText = `Pontos: ${state.score}`;
+
+    resetTurn();
+
+    if (state.matchedPairsCount === state.customPairs.length) {
+      clearInterval(state.timerInterval);
+      setTimeout(() => setScreen('victory'), 600);
+    } else {
+      // Ganha mais tempo por acertar
+      startTimer();
+    }
+  } else {
+    setTimeout(() => {
+      playSound('falha');
+      document.getElementById(`card-${card1.index}`).classList.remove('flipped');
+      document.getElementById(`card-${card2.index}`).classList.remove('flipped');
+      resetTurn();
+
+      // Passa a vez após errar
+      if (db) {
+        passTurnToNextPlayer();
+      }
+    }, 1000);
+  }
+}
+
+function resetTurn() {
+  state.flippedCards = [];
+  state.isLockBoard = false;
+}
+
+function restartGame() {
+  state.score = 0;
+  state.attempts = 0;
+  state.matchedPairsCount = 0;
+  setupCards();
+  setScreen('game');
+}
+
+/* =========================================================
+   9. GERENCIADOR DE PARES E ARQUIVOS (JSON E EXPORTAÇÃO)
+   ========================================================= */
 function addPair() {
   state.customPairs.push({
     id: Date.now(),
@@ -541,67 +700,85 @@ function handleImageUpload(id, itemKey, input) {
   reader.readAsDataURL(file);
 }
 
-function restartGame() {
-  state.score = 0;
-  state.attempts = 0;
-  state.matchedPairsCount = 0;
-  setupCards();
-  setScreen('game');
+function exportPairsJSON() {
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.customPairs, null, 2));
+  const downloadAnchor = document.createElement('a');
+  downloadAnchor.setAttribute("href", dataStr);
+  downloadAnchor.setAttribute("download", `jogo_memoria_pares.json`);
+  document.body.appendChild(downloadAnchor);
+  downloadAnchor.click();
+  downloadAnchor.remove();
 }
 
-/* =========================================================
-   9. LÓGICA DE JOGO DA MEMÓRIA
-   ========================================================= */
-function flipCard(index) {
-  if (state.isLockBoard) return;
-  
-  const cardElement = document.getElementById(`card-${index}`);
-  if (!cardElement || cardElement.classList.contains('flipped') || cardElement.classList.contains('matched')) return;
+function importPairsJSON(input) {
+  const file = input.files[0];
+  if (!file) return;
 
-  playSound('click');
-  cardElement.classList.add('flipped');
-  state.flippedCards.push({ index, pairId: state.cards[index].pairId });
-
-  if (state.flippedCards.length === 2) {
-    state.attempts += 1;
-    checkMatch();
-  }
-}
-
-function checkMatch() {
-  state.isLockBoard = true;
-  const [card1, card2] = state.flippedCards;
-
-  if (card1.pairId === card2.pairId) {
-    playSound('ok');
-    document.getElementById(`card-${card1.index}`).classList.add('matched');
-    document.getElementById(`card-${card2.index}`).classList.add('matched');
-    
-    state.score += 10;
-    state.matchedPairsCount += 1;
-
-    const scoreEl = document.getElementById('score-display');
-    if (scoreEl) scoreEl.innerText = `Pontos: ${state.score}`;
-
-    resetTurn();
-
-    if (state.matchedPairsCount === state.customPairs.length) {
-      clearInterval(state.timerInterval);
-      setTimeout(() => setScreen('victory'), 600);
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    try {
+      const importedPairs = JSON.parse(e.target.result);
+      if (Array.isArray(importedPairs)) {
+        state.customPairs = importedPairs;
+        render();
+        alert("Jogo importado com sucesso!");
+      }
+    } catch (err) {
+      alert("Arquivo JSON inválido.");
     }
-  } else {
-    setTimeout(() => {
-      playSound('falha');
-      document.getElementById(`card-${card1.index}`).classList.remove('flipped');
-      document.getElementById(`card-${card2.index}`).classList.remove('flipped');
-      resetTurn();
-    }, 1000);
-  }
+  };
+  reader.readAsText(file);
 }
 
-function resetTurn() {
-  state.flippedCards = [];
-  state.isLockBoard = false;
+function generatePDFReport() {
+  const printWindow = window.open('', '_blank');
+  
+  const rows = state.players.map((p, i) => `
+    <tr>
+      <td style="padding:8px; border:1px solid #ccc;">${i + 1}º</td>
+      <td style="padding:8px; border:1px solid #ccc;">${p.name}</td>
+      <td style="padding:8px; border:1px solid #ccc; text-align:center;">${p.score || 0}</td>
+    </tr>
+  `).join('');
+
+  const htmlContent = `
+    <html>
+      <head>
+        <title>Relatório de Desempenho - Jeu de Mémorisation</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
+          h1 { color: #6A4C93; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          th { background: #6A4C93; color: white; padding: 10px; border: 1px solid #ccc; }
+        </style>
+      </head>
+      <body>
+        <h1>📊 Relatório da Aula - Francês</h1>
+        <p><strong>PIN da Sala:</strong> ${state.pin}</p>
+        <p><strong>Data:</strong> ${new Date().toLocaleDateString('pt-BR')}</p>
+        
+        <table>
+          <thead>
+            <tr>
+              <th>Posição</th>
+              <th>Aluno</th>
+              <th>Pontuação Final</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+
+        <script>
+          window.onload = function() { window.print(); }
+        </script>
+      </body>
+    </html>
+  `;
+
+  printWindow.document.write(htmlContent);
+  printWindow.document.close();
 }
 
 function triggerConfetti() {
@@ -610,6 +787,9 @@ function triggerConfetti() {
   }
 }
 
+/* =========================================================
+   10. INICIALIZAÇÃO
+   ========================================================= */
 document.addEventListener('DOMContentLoaded', () => {
   render();
 });
