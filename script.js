@@ -1,5 +1,5 @@
 /* =========================================================
-   1. GERENCIADOR DE ÁUDIO E VOZ (WEB SPEECH API)
+   1. GERENCIADOR DE ÁUDIO E VOZ (WEB SPEECH API OTIMIZADO)
    ========================================================= */
 const sounds = {
   click: new Audio('soundeffects/click.mp3'),
@@ -16,12 +16,34 @@ function playSound(name) {
   }
 }
 
+// Pré-carregamento de vozes para eliminar o delay do navegador
+let cachedVoices = [];
+function preloadVoices() {
+  if ('speechSynthesis' in window) {
+    cachedVoices = window.speechSynthesis.getVoices();
+    if (speechSynthesis.onvoiceschanged !== undefined) {
+      speechSynthesis.onvoiceschanged = () => {
+        cachedVoices = window.speechSynthesis.getVoices();
+      };
+    }
+  }
+}
+preloadVoices();
+
 function speakFrench(text) {
   if ('speechSynthesis' in window) {
-    window.speechSynthesis.cancel();
+    window.speechSynthesis.cancel(); // Para áudios anteriores imediatamente
+    
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'fr-FR';
     utterance.rate = 0.9;
+
+    // Busca preferencialmente uma voz nativa em francês já em cache
+    const frenchVoice = cachedVoices.find(voice => voice.lang.includes('fr'));
+    if (frenchVoice) {
+      utterance.voice = frenchVoice;
+    }
+
     window.speechSynthesis.speak(utterance);
   }
 }
@@ -372,7 +394,7 @@ function renderGame() {
       </div>
 
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <span style="font-weight:700; color:var(--red);" id="timer-text">⏱️ 30s</span>
+        <span style="font-weight:700; color:var(--red);" id="timer-text">⏱️ 20s</span>
         <span style="font-weight:700; color:var(--green);" id="score-display">Pontos: ${state.score}</span>
       </div>
 
@@ -414,7 +436,7 @@ function renderVictory() {
 }
 
 /* =========================================================
-   6. TIMER E TROCA DE TURNO
+   6. TIMER E TROCA DE TURNO (20 SEGUNDOS)
    ========================================================= */
 function startTimer() {
   clearInterval(state.timerInterval);
@@ -433,7 +455,7 @@ function startTimer() {
       timerBar.style.width = `${percentage}%`;
     }
 
-    if (state.timeLeft === 10 && !state.timeAudioPlayed) {
+    if (state.timeLeft === 5 && !state.timeAudioPlayed) {
       playSound('time');
       state.timeAudioPlayed = true;
     }
