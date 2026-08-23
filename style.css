@@ -124,7 +124,7 @@ h3 {
   border: 2px solid var(--border);
   border-radius: var(--radius-md);
   padding: 8px 14px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .player-info {
@@ -147,6 +147,23 @@ h3 {
   font-size: 18px;
   font-weight: 800;
   color: var(--purple);
+}
+
+/* TIMER BAR */
+.timer-container {
+  width: 100%;
+  background: var(--border);
+  border-radius: 10px;
+  height: 16px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.timer-bar {
+  height: 100%;
+  background: var(--red);
+  width: 100%;
+  transition: width 1s linear;
 }
 
 /* TELA DE VITÓRIA / PODIUM */
