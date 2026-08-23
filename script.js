@@ -1,14 +1,32 @@
 /* =========================================================
-   1. ESTADO GLOBAL DA APLICAÇÃO
+   1. GERENCIADOR DE ÁUDIO
+   ========================================================= */
+const sounds = {
+  click: new Audio('soundeffects/click.mp3'),
+  ok: new Audio('soundeffects/ok.mp3'),
+  falha: new Audio('soundeffects/falha.mp3')
+};
+
+function playSound(name) {
+  if (sounds[name]) {
+    sounds[name].currentTime = 0;
+    sounds[name].play().catch(() => {}); // Evita bloqueio do navegador antes da primeira interação
+  }
+}
+
+/* =========================================================
+   2. ESTADO GLOBAL DA APLICAÇÃO
    ========================================================= */
 const state = {
   currentScreen: 'home',
   pin: '',
-  userName: '',
-  selectedChar: 'MARIE',
-  selectedSkin: 'padrao',
+  userName: localStorage.getItem('jeu_nickname') || '',
+  selectedChar: localStorage.getItem('jeu_char') || 'MARIE',
+  selectedSkin: localStorage.getItem('jeu_skin') || 'padrao',
   avatarUrl: 'assets/MARIE.png',
   score: 0,
+  attempts: 0,
+  matchedPairsCount: 0,
   isHost: false,
   players: [
     { name: 'Professor (Você)', score: 0, isHost: true }
@@ -22,8 +40,15 @@ const state = {
   isLockBoard: false
 };
 
+// Ajusta URL inicial do Avatar
+if (state.selectedSkin === 'padrao') {
+  state.avatarUrl = `assets/${state.selectedChar}.png`;
+} else {
+  state.avatarUrl = `assets/${state.selectedChar}${state.selectedSkin}.png`;
+}
+
 /* =========================================================
-   2. GERENCIADOR DE RENDERIZAÇÃO
+   3. GERENCIADOR DE RENDERIZAÇÃO
    ========================================================= */
 function setScreen(screenName) {
   state.currentScreen = screenName;
@@ -50,13 +75,17 @@ function render() {
     case 'game':
       app.innerHTML = renderGame();
       break;
+    case 'victory':
+      app.innerHTML = renderVictory();
+      triggerConfetti();
+      break;
     default:
       app.innerHTML = renderHome();
   }
 }
 
 /* =========================================================
-   3. TELAS
+   4. TELAS
    ========================================================= */
 function renderHome() {
   return `
@@ -65,8 +94,8 @@ function renderHome() {
       <h2>Jeu de Mémorisation</h2>
       <p style="color:var(--text-light)">Escolha como deseja entrar na partida:</p>
       <div style="display:flex; flex-direction:column; gap:12px; margin-top:20px;">
-        <button class="btn btn-purple btn-block" onclick="startHostFlow()">🎓 Sou Professor (Criar Sala)</button>
-        <button class="btn btn-blue btn-block" onclick="setScreen('student_join')">✏️ Sou Aluno (Entrar com PIN)</button>
+        <button class="btn btn-purple btn-block" onclick="playSound('click'); startHostFlow();">🎓 Sou Professor (Criar Sala)</button>
+        <button class="btn btn-blue btn-block" onclick="playSound('click'); setScreen('student_join');">✏️ Sou Aluno (Entrar com PIN)</button>
       </div>
     </div>
   `;
@@ -77,7 +106,7 @@ function renderHostCreate() {
     <div class="pair-card">
       <div class="pair-header">
         <span>Par #${idx + 1}</span>
-        ${state.customPairs.length > 2 ? `<button class="btn btn-del" onclick="removePair(${p.id})">Excluir</button>` : ''}
+        ${state.customPairs.length > 2 ? `<button class="btn btn-del" onclick="playSound('click'); removePair(${p.id});">Excluir</button>` : ''}
       </div>
       <div class="pair-grid">
         <div class="item-box">
@@ -117,14 +146,14 @@ function renderHostCreate() {
         ${pairsHtml}
       </div>
 
-      <button class="btn btn-blue" style="font-size:14px; padding:10px; margin-top:12px;" onclick="addPair()">
+      <button class="btn btn-blue" style="font-size:14px; padding:10px; margin-top:12px;" onclick="playSound('click'); addPair();">
         + Adicionar Novo Par
       </button>
     </div>
 
     <div style="margin-top:16px;">
-      <button class="btn btn-purple btn-block" onclick="generateRoomAndPin()">Gerar PIN e Abrir Sala</button>
-      <button class="btn btn-block" style="margin-top:8px; background:#ccc; box-shadow:0 4px 0 #aaa;" onclick="setScreen('home')">Voltar</button>
+      <button class="btn btn-purple btn-block" onclick="playSound('click'); generateRoomAndPin();">Gerar PIN e Abrir Sala</button>
+      <button class="btn btn-block" style="margin-top:8px; background:#ccc; box-shadow:0 4px 0 #aaa;" onclick="playSound('click'); setScreen('home');">Voltar</button>
     </div>
   `;
 }
@@ -152,7 +181,7 @@ function renderHostLobby() {
     </div>
 
     <div style="margin-top:16px;">
-      <button class="btn btn-green btn-block" onclick="setScreen('game')">🚀 Iniciar Jogo Agora</button>
+      <button class="btn btn-green btn-block" onclick="playSound('click'); setScreen('game');">🚀 Iniciar Jogo Agora</button>
     </div>
   `;
 }
@@ -190,17 +219,16 @@ function renderStudentJoin() {
           </div>
         </div>
 
-        <button class="btn btn-blue btn-block" onclick="joinRoom()">Entrar no Jogo</button>
+        <button class="btn btn-blue btn-block" onclick="playSound('click'); joinRoom();">Entrar no Jogo</button>
       </div>
     </div>
 
     <div style="margin-top:16px;">
-      <button class="btn btn-block" style="background:#ccc; box-shadow:0 4px 0 #aaa;" onclick="setScreen('home')">Voltar</button>
+      <button class="btn btn-block" style="background:#ccc; box-shadow:0 4px 0 #aaa;" onclick="playSound('click'); setScreen('home');">Voltar</button>
     </div>
   `;
 }
 
-// Atualiza o DOM do avatar sem chamar a função render() novamente
 function updateAvatarDOM() {
   const char = document.getElementById('select-char').value;
   const skin = document.getElementById('select-skin').value;
@@ -214,10 +242,12 @@ function updateAvatarDOM() {
     state.avatarUrl = `assets/${char}${skin}.png`;
   }
 
+  // Salva escolhas de personagem no LocalStorage
+  localStorage.setItem('jeu_char', char);
+  localStorage.setItem('jeu_skin', skin);
+
   const imgEl = document.getElementById('avatar-img-preview');
-  if (imgEl) {
-    imgEl.src = state.avatarUrl;
-  }
+  if (imgEl) imgEl.src = state.avatarUrl;
 }
 
 function renderGame() {
@@ -242,7 +272,8 @@ function renderGame() {
         <span style="font-weight:700; color:var(--purple);">PIN: ${state.pin}</span>
       </div>
 
-      <div style="display:flex; justify-content:flex-end; align-items:center; margin-bottom:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <span style="font-weight:700; color:var(--text-light);" id="attempts-display">Tentativas: ${state.attempts}</span>
         <span style="font-weight:700; color:var(--green);" id="score-display">Pontos: ${state.score}</span>
       </div>
 
@@ -253,8 +284,39 @@ function renderGame() {
   `;
 }
 
+function renderVictory() {
+  return `
+    <div class="card-box">
+      <div class="mascot">🏆</div>
+      <h2>Félicitations!</h2>
+      <p style="color:var(--text-light)">Você completou o jogo da memória!</p>
+
+      <div class="winner-podium">
+        <div class="winner-avatar-frame">
+          <img src="${state.avatarUrl}" alt="Avatar Campeão" onerror="this.src='https://via.placeholder.com/110?text=Winner'">
+        </div>
+        <h3 style="color:var(--purple); font-size:22px; font-weight:800;">${state.userName}</h3>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-box">
+          <div class="stat-number">${state.score}</div>
+          <div class="stat-label">Pontuação Total</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-number">${state.attempts}</div>
+          <div class="stat-label">Tentativas</div>
+        </div>
+      </div>
+
+      <button class="btn btn-green btn-block" onclick="playSound('click'); restartGame();">🔄 Jogar Novamente</button>
+      <button class="btn btn-block" style="margin-top:8px; background:#ccc; box-shadow:0 4px 0 #aaa;" onclick="playSound('click'); setScreen('home');">Início</button>
+    </div>
+  `;
+}
+
 /* =========================================================
-   4. FUNÇÕES DE CADASTRO E UPLOAD
+   5. FUNÇÕES DE CADASTRO E SALVAMENTO
    ========================================================= */
 function startHostFlow() {
   state.isHost = true;
@@ -314,14 +376,7 @@ function generateRoomAndPin() {
   }
 
   state.pin = Math.floor(100000 + Math.random() * 900000).toString();
-  
-  let cards = [];
-  state.customPairs.forEach(p => {
-    cards.push({ pairId: p.id, type: p.itemA.type, val: p.itemA.value });
-    cards.push({ pairId: p.id, type: p.itemB.type, val: p.itemB.value });
-  });
-
-  state.cards = cards.sort(() => Math.random() - 0.5);
+  setupCards();
   setScreen('host_lobby');
 }
 
@@ -329,33 +384,50 @@ function joinRoom() {
   const nameInput = document.getElementById('student-name');
   const pinInput = document.getElementById('student-pin');
 
-  const name = nameInput ? nameInput.value : '';
-  const pin = pinInput ? pinInput.value : '';
+  const name = nameInput ? nameInput.value.trim() : '';
+  const pin = pinInput ? pinInput.value.trim() : '';
 
-  if (!name.trim() || !pin.trim()) {
+  if (!name || !pin) {
     alert("Preencha seu Nickname e o PIN correto!");
     return;
   }
 
+  // Persiste Nickname no localStorage
+  localStorage.setItem('jeu_nickname', name);
+
   state.userName = name;
   state.pin = pin;
   state.isHost = false;
+  state.score = 0;
+  state.attempts = 0;
+  state.matchedPairsCount = 0;
 
-  // Garante a geração de cartas caso entre sem ser pelo fluxo do professor
   if (state.cards.length === 0) {
-    let cards = [];
-    state.customPairs.forEach(p => {
-      cards.push({ pairId: p.id, type: p.itemA.type, val: p.itemA.value });
-      cards.push({ pairId: p.id, type: p.itemB.type, val: p.itemB.value });
-    });
-    state.cards = cards.sort(() => Math.random() - 0.5);
+    setupCards();
   }
 
   setScreen('game');
 }
 
+function setupCards() {
+  let cards = [];
+  state.customPairs.forEach(p => {
+    cards.push({ pairId: p.id, type: p.itemA.type, val: p.itemA.value });
+    cards.push({ pairId: p.id, type: p.itemB.type, val: p.itemB.value });
+  });
+  state.cards = cards.sort(() => Math.random() - 0.5);
+}
+
+function restartGame() {
+  state.score = 0;
+  state.attempts = 0;
+  state.matchedPairsCount = 0;
+  setupCards();
+  setScreen('game');
+}
+
 /* =========================================================
-   5. LÓGICA DE JOGO DA MEMÓRIA
+   6. LÓGICA DE JOGO DA MEMÓRIA
    ========================================================= */
 function flipCard(index) {
   if (state.isLockBoard) return;
@@ -363,10 +435,15 @@ function flipCard(index) {
   const cardElement = document.getElementById(`card-${index}`);
   if (!cardElement || cardElement.classList.contains('flipped') || cardElement.classList.contains('matched')) return;
 
+  playSound('click');
   cardElement.classList.add('flipped');
   state.flippedCards.push({ index, pairId: state.cards[index].pairId });
 
   if (state.flippedCards.length === 2) {
+    state.attempts += 1;
+    const attEl = document.getElementById('attempts-display');
+    if (attEl) attEl.innerText = `Tentativas: ${state.attempts}`;
+
     checkMatch();
   }
 }
@@ -376,14 +453,29 @@ function checkMatch() {
   const [card1, card2] = state.flippedCards;
 
   if (card1.pairId === card2.pairId) {
+    // ACERTOU
+    playSound('ok');
     document.getElementById(`card-${card1.index}`).classList.add('matched');
     document.getElementById(`card-${card2.index}`).classList.add('matched');
+    
     state.score += 10;
+    state.matchedPairsCount += 1;
+
     const scoreEl = document.getElementById('score-display');
     if (scoreEl) scoreEl.innerText = `Pontos: ${state.score}`;
+
     resetTurn();
+
+    // VERIFICA VITÓRIA
+    if (state.matchedPairsCount === state.customPairs.length) {
+      setTimeout(() => {
+        setScreen('victory');
+      }, 600);
+    }
   } else {
+    // ERROU
     setTimeout(() => {
+      playSound('falha');
       document.getElementById(`card-${card1.index}`).classList.remove('flipped');
       document.getElementById(`card-${card2.index}`).classList.remove('flipped');
       resetTurn();
@@ -394,6 +486,16 @@ function checkMatch() {
 function resetTurn() {
   state.flippedCards = [];
   state.isLockBoard = false;
+}
+
+function triggerConfetti() {
+  if (typeof confetti === 'function') {
+    confetti({
+      particleCount: 100,
+      spread: 70,
+      origin: { y: 0.6 }
+    });
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
