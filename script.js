@@ -77,13 +77,17 @@ try {
 /* =========================================================
    3. ESTADO GLOBAL DA APLICAÇÃO
    ========================================================= */
+const initialChar = localStorage.getItem('jeu_char') || 'MARIE';
+const initialSkin = localStorage.getItem('jeu_skin') || 'padrao';
+const initialFileName = initialSkin === 'padrao' ? initialChar : `${initialChar}${initialSkin}`;
+
 const state = {
   currentScreen: 'home',
   pin: '',
   userName: localStorage.getItem('jeu_nickname') || '',
-  selectedChar: localStorage.getItem('jeu_char') || 'MARIE',
-  selectedSkin: localStorage.getItem('jeu_skin') || 'padrao',
-  avatarUrl: 'assets/MARIE.png',
+  selectedChar: initialChar,
+  selectedSkin: initialSkin,
+  avatarUrl: `assets/${encodeURIComponent(initialFileName)}.png`,
   score: 0,
   attempts: 0,
   timeLeft: 20,
@@ -102,12 +106,6 @@ const state = {
   flippedCards: [],
   isLockBoard: false
 };
-
-if (state.selectedSkin === 'padrao') {
-  state.avatarUrl = `assets/${state.selectedChar}.png`;
-} else {
-  state.avatarUrl = `assets/${state.selectedChar}${state.selectedSkin}.png`;
-}
 
 /* =========================================================
    4. RENDERIZAÇÃO
@@ -301,6 +299,16 @@ function renderTeacherDashboard() {
 }
 
 function renderStudentJoin() {
+  const characters = [
+    'AGNÈS', 'BÉATRICE', 'CHARLOTTE', 'CÉCILE', 
+    'JACQUES', 'JULIEN', 'MARGOT', 'MARIE', 
+    'MATHIEU', 'MONIQUE', 'PHILLIPE', 'PIERRE'
+  ];
+
+  const charOptions = characters.map(char => `
+    <option value="${char}" ${state.selectedChar === char ? 'selected' : ''}>${char}</option>
+  `).join('');
+
   return `
     <div class="card-box">
       <div class="mascot">✏️</div>
@@ -314,8 +322,7 @@ function renderStudentJoin() {
           <div style="width:100%; text-align:left;">
             <label style="font-weight:700; font-size:13px; color:var(--text-light);">Escolha seu Personagem:</label>
             <select id="select-char" class="input-field" style="margin-top:4px;" onchange="updateAvatarDOM()">
-              <option value="MARIE" ${state.selectedChar === 'MARIE' ? 'selected' : ''}>Marie</option>
-              <option value="MATHIEU" ${state.selectedChar === 'MATHIEU' ? 'selected' : ''}>Mathieu</option>
+              ${charOptions}
             </select>
           </div>
 
@@ -324,7 +331,6 @@ function renderStudentJoin() {
             <select id="select-skin" class="input-field" style="margin-top:4px;" onchange="updateAvatarDOM()">
               <option value="padrao" ${state.selectedSkin === 'padrao' ? 'selected' : ''}>Visual Padrão</option>
               <option value="01" ${state.selectedSkin === '01' ? 'selected' : ''}>Roupa 01</option>
-              <option value="02" ${state.selectedSkin === '02' ? 'selected' : ''}>Roupa 02</option>
             </select>
           </div>
 
@@ -350,11 +356,12 @@ function updateAvatarDOM() {
   state.selectedChar = char;
   state.selectedSkin = skin;
 
-  if (skin === 'padrao') {
-    state.avatarUrl = `assets/${char}.png`;
-  } else {
-    state.avatarUrl = `assets/${char}${skin}.png`;
+  let fileName = char;
+  if (skin !== 'padrao') {
+    fileName += skin;
   }
+
+  state.avatarUrl = `assets/${encodeURIComponent(fileName)}.png`;
 
   localStorage.setItem('jeu_char', char);
   localStorage.setItem('jeu_skin', skin);
