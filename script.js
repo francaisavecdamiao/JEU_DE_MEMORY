@@ -52,13 +52,13 @@ function speakFrench(text) {
    2. CONFIGURAÇÃO E VALIDAÇÃO DO FIREBASE
    ========================================================= */
 const firebaseConfig = {
-  apiKey: "SUA_API_KEY_AQUI",
-  authDomain: "SEU_PROJETO.firebaseapp.com",
-  databaseURL: "https://SEU_PROJETO-default-rtdb.firebaseio.com",
-  projectId: "SEU_PROJETO",
-  storageBucket: "SEU_PROJETO.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "1:123456789:web:abcdef"
+  apiKey: "AIzaSyCqLZqaJkIMLJyqRDdXfa8gMjZx8kIwHCw",
+  authDomain: "jeu-de-memory.firebaseapp.com",
+  databaseURL: "https://jeu-de-memory-default-rtdb.firebaseio.com",
+  projectId: "jeu-de-memory",
+  storageBucket: "jeu-de-memory.firebasestorage.app",
+  messagingSenderId: "429888413918",
+  appId: "1:429888413918:web:a3db9a1027e51195b5224f"
 };
 
 let db = null;
