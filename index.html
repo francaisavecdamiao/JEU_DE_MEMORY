@@ -3,25 +3,30 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Jeu de Mémorisation</title>
-  
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
-  
-  <!-- Canvas Confetti CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-
-  <!-- Firebase SDKs (v9 Compat) -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
-
-  <link rel="stylesheet" href="./style.css">
+  <title>Jogo da Memória</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-  <div id="app"></div>
+  <div class="game-container">
+    <header class="header">
+      <h1>Jogo da Memória</h1>
+      <div class="stats-board">
+        <div class="stat-item">
+          <span class="stat-label">Movimentos</span>
+          <span id="moves" class="stat-value">0</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Tempo</span>
+          <span id="timer" class="stat-value">00:00</span>
+        </div>
+      </div>
+      <button id="restart" class="btn-restart">Reiniciar</button>
+    </header>
 
-  <script src="./script.js"></script>
+    <main id="board" class="board"></main>
+  </div>
+
+  <script src="script.js"></script>
 </body>
 </html>
