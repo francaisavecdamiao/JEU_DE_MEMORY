@@ -1,5 +1,5 @@
 /* =========================================================
-   1. GERENCIADOR DE ÁUDIO
+   1. GERENCIADOR DE ÁUDIO E VOZ (WEB SPEECH API)
    ========================================================= */
 const sounds = {
   click: new Audio('soundeffects/click.mp3'),
@@ -16,8 +16,18 @@ function playSound(name) {
   }
 }
 
+function speakFrench(text) {
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'fr-FR';
+    utterance.rate = 0.9;
+    window.speechSynthesis.speak(utterance);
+  }
+}
+
 /* =========================================================
-   2. CONFIGURAÇÃO E CONEXÃO COM O FIREBASE
+   2. CONFIGURAÇÃO E VALIDAÇÃO DO FIREBASE
    ========================================================= */
 const firebaseConfig = {
   apiKey: "SUA_API_KEY_AQUI",
@@ -30,13 +40,16 @@ const firebaseConfig = {
 };
 
 let db = null;
+let isFirebaseActive = false;
+
 try {
-  if (firebaseConfig.apiKey !== "SUA_API_KEY_AQUI") {
+  if (firebaseConfig.apiKey !== "SUA_API_KEY_AQUI" && firebaseConfig.apiKey.trim() !== "") {
     firebase.initializeApp(firebaseConfig);
     db = firebase.database();
+    isFirebaseActive = true;
   }
 } catch (e) {
-  console.warn("Firebase não configurado ainda.");
+  console.warn("Firebase não ativo. Executando em Modo Offline.");
 }
 
 /* =========================================================
@@ -86,21 +99,27 @@ function render() {
   const app = document.getElementById('app');
   if (!app) return;
 
+  const firebaseNotice = !isFirebaseActive ? `
+    <div style="background:#FFF3CD; color:#856404; padding:8px 12px; border-radius:8px; font-size:12px; margin-bottom:12px; text-align:center; font-weight:700;">
+      ⚠️ Modo Offline (sem Firebase). Para jogar multiplayer em rede, insira as chaves no script.js.
+    </div>
+  ` : '';
+
   switch (state.currentScreen) {
     case 'home':
-      app.innerHTML = renderHome();
+      app.innerHTML = firebaseNotice + renderHome();
       break;
     case 'host_create':
-      app.innerHTML = renderHostCreate();
+      app.innerHTML = firebaseNotice + renderHostCreate();
       break;
     case 'host_lobby':
-      app.innerHTML = renderHostLobby();
+      app.innerHTML = firebaseNotice + renderHostLobby();
       break;
     case 'teacher_dashboard':
       app.innerHTML = renderTeacherDashboard();
       break;
     case 'student_join':
-      app.innerHTML = renderStudentJoin();
+      app.innerHTML = firebaseNotice + renderStudentJoin();
       break;
     case 'game':
       app.innerHTML = renderGame();
@@ -116,7 +135,7 @@ function render() {
 }
 
 /* =========================================================
-   5. TELAS DA APLICAÇÃO
+   5. TELAS
    ========================================================= */
 function renderHome() {
   return `
@@ -146,7 +165,7 @@ function renderHostCreate() {
             <option value="image" ${p.itemA.type === 'image' ? 'selected' : ''}>Upload Imagem</option>
           </select>
           ${p.itemA.type === 'text' 
-            ? `<input type="text" class="input-field input-sm" placeholder="Texto..." value="${p.itemA.value}" oninput="updateItemValue(${p.id}, 'itemA', this.value)">`
+            ? `<input type="text" class="input-field input-sm" placeholder="Texto em francês..." value="${p.itemA.value}" oninput="updateItemValue(${p.id}, 'itemA', this.value)">`
             : `<input type="file" accept="image/*" class="input-sm" onchange="handleImageUpload(${p.id}, 'itemA', this)">
                ${p.itemA.value ? `<img src="${p.itemA.value}" class="img-preview">` : ''}`
           }
@@ -158,7 +177,7 @@ function renderHostCreate() {
             <option value="image" ${p.itemB.type === 'image' ? 'selected' : ''}>Upload Imagem</option>
           </select>
           ${p.itemB.type === 'text' 
-            ? `<input type="text" class="input-field input-sm" placeholder="Texto..." value="${p.itemB.value}" oninput="updateItemValue(${p.id}, 'itemB', this.value)">`
+            ? `<input type="text" class="input-field input-sm" placeholder="Tradução..." value="${p.itemB.value}" oninput="updateItemValue(${p.id}, 'itemB', this.value)">`
             : `<input type="file" accept="image/*" class="input-sm" onchange="handleImageUpload(${p.id}, 'itemB', this)">
                ${p.itemB.value ? `<img src="${p.itemB.value}" class="img-preview">` : ''}`
           }
@@ -323,7 +342,7 @@ function updateAvatarDOM() {
 }
 
 function renderGame() {
-  const isMyTurn = state.userName === state.activePlayerId || !db;
+  const isMyTurn = state.userName === state.activePlayerId || !isFirebaseActive;
 
   const cardsGrid = state.cards.map((c, index) => `
     <div class="memory-card" id="card-${index}" onclick="flipCard(${index})">
@@ -357,7 +376,7 @@ function renderGame() {
         <span style="font-weight:700; color:var(--green);" id="score-display">Pontos: ${state.score}</span>
       </div>
 
-      <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px;">
+      <div class="cards-grid">
         ${cardsGrid}
       </div>
     </div>
@@ -395,7 +414,7 @@ function renderVictory() {
 }
 
 /* =========================================================
-   6. LÓGICA DO TIMER E TROCA DE TURNO
+   6. TIMER E TROCA DE TURNO
    ========================================================= */
 function startTimer() {
   clearInterval(state.timerInterval);
@@ -423,9 +442,9 @@ function startTimer() {
       clearInterval(state.timerInterval);
       playSound('alert');
 
-      if (db && (state.isHost || state.userName === state.activePlayerId)) {
+      if (isFirebaseActive && (state.isHost || state.userName === state.activePlayerId)) {
         passTurnToNextPlayer();
-      } else if (!db) {
+      } else if (!isFirebaseActive) {
         setScreen('victory');
       }
     }
@@ -433,7 +452,7 @@ function startTimer() {
 }
 
 function passTurnToNextPlayer() {
-  if (!db || !state.pin || state.players.length === 0) return;
+  if (!isFirebaseActive || !state.pin || state.players.length === 0) return;
 
   const totalPlayers = state.players.length;
   const nextIndex = (state.currentTurnIndex + 1) % totalPlayers;
@@ -446,7 +465,7 @@ function passTurnToNextPlayer() {
 }
 
 /* =========================================================
-   7. MULTIPLAYER E SINCRONIZAÇÃO EM TEMPO REAL
+   7. MULTIPLAYER E SINCRONIZAÇÃO
    ========================================================= */
 function startHostFlow() {
   state.isHost = true;
@@ -463,7 +482,7 @@ function generateRoomAndPin() {
   state.pin = Math.floor(100000 + Math.random() * 900000).toString();
   setupCards();
 
-  if (db) {
+  if (isFirebaseActive) {
     db.ref('rooms/' + state.pin).set({
       status: 'waiting',
       cards: state.cards,
@@ -479,7 +498,7 @@ function generateRoomAndPin() {
 }
 
 function listenRoomUpdates() {
-  if (!db || !state.pin) return;
+  if (!isFirebaseActive || !state.pin) return;
 
   db.ref(`rooms/${state.pin}`).on('value', (snapshot) => {
     const room = snapshot.val();
@@ -490,7 +509,6 @@ function listenRoomUpdates() {
     state.activePlayerId = room.activePlayerId || '';
 
     if (room.players) {
-      // Garante que a ordem de entrada seja mantida
       const playersArray = Object.values(room.players);
       state.players = playersArray.sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
     }
@@ -510,14 +528,14 @@ function listenRoomUpdates() {
 }
 
 function startMultiplayerGame() {
-  if (db && state.players.length > 0) {
+  if (isFirebaseActive && state.players.length > 0) {
     const firstPlayer = state.players[0];
     db.ref('rooms/' + state.pin).update({
       status: 'playing',
       currentTurnIndex: 0,
       activePlayerId: firstPlayer.name
     });
-  } else if (!db) {
+  } else if (!isFirebaseActive) {
     setScreen('game');
   }
 }
@@ -529,8 +547,8 @@ function joinRoom() {
   const name = nameInput ? nameInput.value.trim() : '';
   const pin = pinInput ? pinInput.value.trim() : '';
 
-  if (!name || !pin) {
-    alert("Preencha seu Nickname e o PIN correto!");
+  if (!name || (!pin && isFirebaseActive)) {
+    alert("Preencha seu Nickname e o PIN!");
     return;
   }
 
@@ -543,7 +561,7 @@ function joinRoom() {
   state.attempts = 0;
   state.matchedPairsCount = 0;
 
-  if (db) {
+  if (isFirebaseActive) {
     const playerRef = db.ref(`rooms/${pin}/players/${name}`);
     playerRef.set({
       name: name,
@@ -590,7 +608,13 @@ function flipCard(index) {
 
   playSound('click');
   cardElement.classList.add('flipped');
-  state.flippedCards.push({ index, pairId: state.cards[index].pairId });
+
+  const currentCard = state.cards[index];
+  if (currentCard.type === 'text') {
+    speakFrench(currentCard.val);
+  }
+
+  state.flippedCards.push({ index, pairId: currentCard.pairId });
 
   if (state.flippedCards.length === 2) {
     state.attempts += 1;
@@ -610,7 +634,7 @@ function checkMatch() {
     state.score += 10;
     state.matchedPairsCount += 1;
 
-    if (db) {
+    if (isFirebaseActive) {
       db.ref(`rooms/${state.pin}/players/${state.userName}`).update({ score: state.score });
     }
 
@@ -623,7 +647,6 @@ function checkMatch() {
       clearInterval(state.timerInterval);
       setTimeout(() => setScreen('victory'), 600);
     } else {
-      // Ganha mais tempo por acertar
       startTimer();
     }
   } else {
@@ -633,8 +656,7 @@ function checkMatch() {
       document.getElementById(`card-${card2.index}`).classList.remove('flipped');
       resetTurn();
 
-      // Passa a vez após errar
-      if (db) {
+      if (isFirebaseActive) {
         passTurnToNextPlayer();
       }
     }, 1000);
@@ -655,7 +677,7 @@ function restartGame() {
 }
 
 /* =========================================================
-   9. GERENCIADOR DE PARES E ARQUIVOS (JSON E EXPORTAÇÃO)
+   9. GESTÃO DE PARES E EXPORTAÇÃO
    ========================================================= */
 function addPair() {
   state.customPairs.push({
