@@ -381,3 +381,25 @@ h3 {
   max-height: 90%;
   object-fit: contain;
 }
+/* Grade Responsiva dos Cards */
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+/* Telas de Celular (até 480px) */
+@media (max-width: 480px) {
+  .cards-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  .memory-card {
+    height: 90px;
+  }
+
+  .card-front span {
+    font-size: 13px;
+  }
+}
