@@ -16,7 +16,6 @@ function playSound(name) {
   }
 }
 
-// Pré-carregamento de vozes para eliminar o delay do navegador
 let cachedVoices = [];
 function preloadVoices() {
   if ('speechSynthesis' in window) {
@@ -32,13 +31,12 @@ preloadVoices();
 
 function speakFrench(text) {
   if ('speechSynthesis' in window) {
-    window.speechSynthesis.cancel(); // Para áudios anteriores imediatamente
+    window.speechSynthesis.cancel();
     
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'fr-FR';
     utterance.rate = 0.9;
 
-    // Busca preferencialmente uma voz nativa em francês já em cache
     const frenchVoice = cachedVoices.find(voice => voice.lang.includes('fr'));
     if (frenchVoice) {
       utterance.voice = frenchVoice;
@@ -88,7 +86,7 @@ const state = {
   selectedChar: initialChar,
   selectedSkin: initialSkin,
   avatarUrl: `assets/${encodeURIComponent(initialFileName)}.png`,
-  score: 0,
+  score: 0, // representará o número de pares acertados (1 par = 1 ponto)
   attempts: 0,
   timeLeft: 20,
   timerInterval: null,
@@ -108,7 +106,7 @@ const state = {
 };
 
 /* =========================================================
-   4. RENDERIZAÇÃO
+   4. RENDERIZAÇÃO E NAVEGAÇÃO
    ========================================================= */
 function setScreen(screenName) {
   state.currentScreen = screenName;
@@ -121,7 +119,7 @@ function render() {
 
   const firebaseNotice = !isFirebaseActive ? `
     <div style="background:#FFF3CD; color:#856404; padding:8px 12px; border-radius:8px; font-size:12px; margin-bottom:12px; text-align:center; font-weight:700;">
-      ⚠️ Modo Offline (sem Firebase). Para jogar multiplayer em rede, insira as chaves no script.js.
+      ⚠️ Modo Offline (sem Firebase).
     </div>
   ` : '';
 
@@ -135,11 +133,14 @@ function render() {
     case 'host_lobby':
       app.innerHTML = firebaseNotice + renderHostLobby();
       break;
-    case 'teacher_dashboard':
-      app.innerHTML = renderTeacherDashboard();
-      break;
     case 'student_join':
       app.innerHTML = firebaseNotice + renderStudentJoin();
+      break;
+    case 'student_lobby':
+      app.innerHTML = firebaseNotice + renderStudentLobby();
+      break;
+    case 'teacher_dashboard':
+      app.innerHTML = renderTeacherDashboard();
       break;
     case 'game':
       app.innerHTML = renderGame();
@@ -235,9 +236,12 @@ function renderHostCreate() {
 
 function renderHostLobby() {
   const playerList = state.players.map((p, idx) => `
-    <li style="background:white; padding:8px 12px; border-radius:8px; margin-bottom:6px; font-weight:700; display:flex; justify-content:space-between;">
-      <span>👤 ${p.name}</span>
-      <span style="font-size:12px; color:var(--text-light);">${idx + 1}º da Fila</span>
+    <li style="background:white; padding:8px 12px; border-radius:8px; margin-bottom:6px; font-weight:700; display:flex; align-items:center; justify-space-between;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <img src="${p.avatar || 'https://via.placeholder.com/35'}" style="width:35px; height:35px; border-radius:50%; object-fit:cover;">
+        <span>${p.name}</span>
+      </div>
+      <span style="font-size:12px; color:var(--text-light);">${idx + 1}º a jogar</span>
     </li>
   `).join('');
 
@@ -251,49 +255,13 @@ function renderHostLobby() {
       </div>
 
       <h3>Alunos Conectados (${state.players.length}):</h3>
-      <ul style="list-style:none; padding:0; text-align:left; max-height:150px; overflow-y:auto;">
-        ${playerList.length > 0 ? playerList : '<li style="color:#aaa;">Aguardando alunos entrarem...</li>'}
+      <ul style="list-style:none; padding:0; text-align:left; max-height:200px; overflow-y:auto;">
+        ${playerList.length > 0 ? playerList : '<li style="color:#aaa; text-align:center;">Aguardando alunos entrarem...</li>'}
       </ul>
     </div>
 
     <div style="margin-top:16px;">
       <button class="btn btn-green btn-block" onclick="playSound('click'); startMultiplayerGame();">🚀 Iniciar Jogo Agora</button>
-    </div>
-  `;
-}
-
-function renderTeacherDashboard() {
-  const playersTable = state.players.map(p => `
-    <tr style="border-bottom: 1px solid var(--border);">
-      <td style="padding:10px; font-weight:700;">👤 ${p.name}</td>
-      <td style="padding:10px; text-align:center; font-weight:800; color:var(--purple);">${p.score || 0} pts</td>
-      <td style="padding:10px; text-align:center;">
-        ${p.name === state.activePlayerId ? '🟢 Jogando' : '⏳ Aguardando'}
-      </td>
-    </tr>
-  `).join('');
-
-  return `
-    <div class="card-box" style="max-width:650px;">
-      <h2>📊 Painel do Professor (Ao Vivo)</h2>
-      <p style="color:var(--text-light); margin-bottom:14px;">PIN da Sala: <strong>${state.pin}</strong></p>
-
-      <table style="width:100%; border-collapse:collapse; margin-top:10px; text-align:left;">
-        <thead>
-          <tr style="background:var(--bg); color:var(--text-light); font-size:13px;">
-            <th style="padding:8px;">Aluno</th>
-            <th style="padding:8px; text-align:center;">Pontuação</th>
-            <th style="padding:8px; text-align:center;">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${playersTable.length > 0 ? playersTable : '<tr><td colspan="3" style="padding:10px; text-align:center;">Sem jogadores salvos</td></tr>'}
-        </tbody>
-      </table>
-
-      <div style="margin-top:20px;">
-        <button class="btn btn-purple btn-block" onclick="generatePDFReport()">📄 Gerar Relatório em PDF</button>
-      </div>
     </div>
   `;
 }
@@ -339,12 +307,214 @@ function renderStudentJoin() {
           </div>
         </div>
 
-        <button class="btn btn-blue btn-block" onclick="playSound('click'); joinRoom();">Entrar no Jogo</button>
+        <button class="btn btn-blue btn-block" onclick="playSound('click'); joinRoom();">Entrar na Sala</button>
       </div>
     </div>
 
     <div style="margin-top:16px;">
       <button class="btn btn-block" style="background:#ccc; box-shadow:0 4px 0 #aaa;" onclick="playSound('click'); setScreen('home');">Voltar</button>
+    </div>
+  `;
+}
+
+function renderStudentLobby() {
+  const playerList = state.players.map((p, idx) => `
+    <li style="background:white; padding:10px; border-radius:10px; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; box-shadow:0 2px 4px rgba(0,0,0,0.05);">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <img src="${p.avatar || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover; border:2px solid var(--purple);">
+        <span style="font-weight:700;">${p.name} ${p.name === state.userName ? '(Você)' : ''}</span>
+      </div>
+      <span style="font-size:12px; font-weight:700; background:var(--bg); padding:4px 8px; border-radius:6px; color:var(--purple);">${idx + 1}º a jogar</span>
+    </li>
+  `).join('');
+
+  return `
+    <div class="card-box">
+      <h2>Sala de Espera</h2>
+      <p style="color:var(--text-light)">PIN da Sala: <strong>${state.pin}</strong></p>
+      
+      <div style="margin:16px 0; background:#FFF3CD; padding:10px; border-radius:8px; font-weight:700; color:#856404; animation: pulse 1.5s infinite;">
+        ⏳ Aguardando o professor iniciar o jogo...
+      </div>
+
+      <h3 style="text-align:left; font-size:14px; color:var(--text-light); margin-bottom:10px;">Ordem dos Participantes:</h3>
+      <ul style="list-style:none; padding:0; text-align:left; max-height:220px; overflow-y:auto;">
+        ${playerList.length > 0 ? playerList : '<li>Aguardando outros jogadores...</li>'}
+      </ul>
+    </div>
+  `;
+}
+
+function renderTeacherDashboard() {
+  const sortedPlayers = [...state.players].sort((a, b) => (b.score || 0) - (a.score || 0));
+
+  const playersTable = sortedPlayers.map((p, idx) => `
+    <tr style="border-bottom: 1px solid var(--border);">
+      <td style="padding:10px; font-weight:700;">${idx + 1}º</td>
+      <td style="padding:10px; font-weight:700; display:flex; align-items:center; gap:8px;">
+        <img src="${p.avatar}" style="width:30px; height:30px; border-radius:50%;">
+        ${p.name}
+      </td>
+      <td style="padding:10px; text-align:center; font-weight:800; color:var(--purple);">${p.score || 0} pares</td>
+      <td style="padding:10px; text-align:center;">
+        ${p.name === state.activePlayerId ? '🟢 Jogando' : '⏳ Aguardando'}
+      </td>
+    </tr>
+  `).join('');
+
+  return `
+    <div class="card-box" style="max-width:650px;">
+      <h2>📊 Painel do Professor (Ao Vivo)</h2>
+      <p style="color:var(--text-light); margin-bottom:14px;">PIN da Sala: <strong>${state.pin}</strong></p>
+
+      <table style="width:100%; border-collapse:collapse; margin-top:10px; text-align:left;">
+        <thead>
+          <tr style="background:var(--bg); color:var(--text-light); font-size:13px;">
+            <th style="padding:8px;">Pos</th>
+            <th style="padding:8px;">Aluno</th>
+            <th style="padding:8px; text-align:center;">Pares</th>
+            <th style="padding:8px; text-align:center;">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${playersTable}
+        </tbody>
+      </table>
+
+      <div style="margin-top:20px;">
+        <button class="btn btn-purple btn-block" onclick="generatePDFReport()">📄 Gerar Relatório em PDF</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderGame() {
+  const isMyTurn = state.userName === state.activePlayerId || !isFirebaseActive;
+
+  // Ordenação para o Top 5
+  const topPlayers = [...state.players]
+    .sort((a, b) => (b.score || 0) - (a.score || 0))
+    .slice(0, 5);
+
+  const leaderboardCards = topPlayers.map((p, idx) => `
+    <div style="display:flex; flex-direction:column; align-items:center; background:white; padding:6px 8px; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,0.1); min-width:65px;">
+      <img src="${p.avatar || 'https://via.placeholder.com/35'}" style="width:35px; height:35px; border-radius:50%; object-fit:cover; border:2px solid ${idx === 0 ? '#FFD700' : 'var(--purple)'};">
+      <span style="font-size:11px; font-weight:800; text-overflow:ellipsis; overflow:hidden; max-width:60px; white-space:nowrap; margin-top:2px;">${p.name}</span>
+      <span style="font-size:10px; font-weight:700; color:var(--purple);">${p.score || 0} ${p.score === 1 ? 'par' : 'pares'}</span>
+    </div>
+  `).join('');
+
+  const cardsGrid = state.cards.map((c, index) => `
+    <div class="memory-card" id="card-${index}" onclick="flipCard(${index})">
+      <div class="card-inner">
+        <div class="card-back">❓</div>
+        <div class="card-front">
+          ${c.type === 'image' ? `<img src="${c.val}" alt="imagem">` : `<span>${c.val}</span>`}
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  return `
+    <!-- Top 5 Leaderboard Superior -->
+    <div style="width:100%; max-width:600px; margin-bottom:12px; overflow-x:auto;">
+      <div style="display:flex; justify-content:center; gap:8px;">
+        ${leaderboardCards}
+      </div>
+    </div>
+
+    <div class="card-box" style="max-width:600px;">
+      <div class="player-hud">
+        <div class="player-info">
+          <img src="${state.avatarUrl}" class="hud-avatar" alt="Avatar">
+          <span class="hud-nickname">${state.userName || 'Jogador'}</span>
+        </div>
+        <span style="font-weight:700; color:var(--purple);" id="turn-indicator">
+          ${isMyTurn ? "👉 SEU TURNO!" : `Aguardando: ${state.activePlayerId || '...'}`}
+        </span>
+      </div>
+
+      <div class="timer-container">
+        <div class="timer-bar" id="timer-bar"></div>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <span style="font-weight:700; color:var(--red);" id="timer-text">⏱️ 20s</span>
+        <span style="font-weight:700; color:var(--green);" id="score-display">Seus Pares: ${state.score}</span>
+      </div>
+
+      <div class="cards-grid">
+        ${cardsGrid}
+      </div>
+    </div>
+  `;
+}
+
+function renderVictory() {
+  const sortedPlayers = [...state.players].sort((a, b) => (b.score || 0) - (a.score || 0));
+
+  const p1 = sortedPlayers[0] || { name: '-', score: 0, avatar: '' };
+  const p2 = sortedPlayers[1] || { name: '-', score: 0, avatar: '' };
+  const p3 = sortedPlayers[2] || { name: '-', score: 0, avatar: '' };
+
+  const remainingPlayers = sortedPlayers.slice(3);
+
+  const remainingRows = remainingPlayers.map((p, idx) => `
+    <tr style="border-bottom:1px solid #eee;">
+      <td style="padding:8px; font-weight:700;">${idx + 4}º</td>
+      <td style="padding:8px; display:flex; align-items:center; gap:8px;">
+        <img src="${p.avatar}" style="width:25px; height:25px; border-radius:50%;">
+        <span>${p.name}</span>
+      </td>
+      <td style="padding:8px; text-align:center; font-weight:800; color:var(--purple);">${p.score || 0} pares</td>
+    </tr>
+  `).join('');
+
+  return `
+    <div class="card-box" style="max-width:600px;">
+      <h2>🏆 Fim da Partida!</h2>
+      <p style="color:var(--text-light); margin-bottom:20px;">Todos os pares foram encontrados!</p>
+
+      <!-- Pódio Tradicional em Escada -->
+      <div style="display:flex; justify-content:center; align-items:flex-end; gap:10px; margin-bottom:30px; height:180px;">
+        <!-- 2º Lugar -->
+        <div style="display:flex; flex-direction:column; align-items:center; flex:1;">
+          <img src="${p2.avatar || 'https://via.placeholder.com/45'}" style="width:45px; height:45px; border-radius:50%; border:3px solid #C0C0C0; margin-bottom:4px;">
+          <span style="font-size:12px; font-weight:800; max-width:70px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${p2.name}</span>
+          <span style="font-size:10px; font-weight:700; color:var(--purple);">${p2.score || 0} pares</span>
+          <div style="width:100%; height:80px; background:#C0C0C0; color:white; font-weight:800; display:flex; align-items:center; justify-content:center; border-radius:8px 8px 0 0; font-size:20px;">2</div>
+        </div>
+
+        <!-- 1º Lugar -->
+        <div style="display:flex; flex-direction:column; align-items:center; flex:1;">
+          <img src="${p1.avatar || 'https://via.placeholder.com/60'}" style="width:60px; height:60px; border-radius:50%; border:3px solid #FFD700; margin-bottom:4px;">
+          <span style="font-size:13px; font-weight:800; max-width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${p1.name}</span>
+          <span style="font-size:11px; font-weight:700; color:var(--purple);">${p1.score || 0} pares</span>
+          <div style="width:100%; height:110px; background:#FFD700; color:white; font-weight:800; display:flex; align-items:center; justify-content:center; border-radius:8px 8px 0 0; font-size:26px;">1</div>
+        </div>
+
+        <!-- 3º Lugar -->
+        <div style="display:flex; flex-direction:column; align-items:center; flex:1;">
+          <img src="${p3.avatar || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; border:3px solid #CD7F32; margin-bottom:4px;">
+          <span style="font-size:12px; font-weight:800; max-width:70px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${p3.name}</span>
+          <span style="font-size:10px; font-weight:700; color:var(--purple);">${p3.score || 0} pares</span>
+          <div style="width:100%; height:60px; background:#CD7F32; color:white; font-weight:800; display:flex; align-items:center; justify-content:center; border-radius:8px 8px 0 0; font-size:18px;">3</div>
+        </div>
+      </div>
+
+      <!-- Restante da Classificação -->
+      ${remainingPlayers.length > 0 ? `
+        <h3 style="text-align:left; font-size:14px; color:var(--text-light); margin-bottom:8px;">Demais Colocados:</h3>
+        <table style="width:100%; border-collapse:collapse; text-align:left; font-size:13px;">
+          <tbody>
+            ${remainingRows}
+          </tbody>
+        </table>
+      ` : ''}
+
+      <div style="margin-top:24px;">
+        <button class="btn btn-green btn-block" onclick="playSound('click'); setScreen('home');">Início</button>
+      </div>
     </div>
   `;
 }
@@ -370,92 +540,22 @@ function updateAvatarDOM() {
   if (imgEl) imgEl.src = state.avatarUrl;
 }
 
-function renderGame() {
-  const isMyTurn = state.userName === state.activePlayerId || !isFirebaseActive;
-
-  const cardsGrid = state.cards.map((c, index) => `
-    <div class="memory-card" id="card-${index}" onclick="flipCard(${index})">
-      <div class="card-inner">
-        <div class="card-back">❓</div>
-        <div class="card-front">
-          ${c.type === 'image' ? `<img src="${c.val}" alt="imagem">` : `<span>${c.val}</span>`}
-        </div>
-      </div>
-    </div>
-  `).join('');
-
-  return `
-    <div class="card-box" style="max-width:600px;">
-      <div class="player-hud">
-        <div class="player-info">
-          <img src="${state.avatarUrl}" class="hud-avatar" alt="Avatar" onerror="this.src='https://via.placeholder.com/40?text=A'">
-          <span class="hud-nickname">${state.userName || 'Jogador'}</span>
-        </div>
-        <span style="font-weight:700; color:var(--purple);" id="turn-indicator">
-          ${isMyTurn ? "👉 SEU TURNO!" : `Aguardando: ${state.activePlayerId || '...'}`}
-        </span>
-      </div>
-
-      <div class="timer-container">
-        <div class="timer-bar" id="timer-bar"></div>
-      </div>
-
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <span style="font-weight:700; color:var(--red);" id="timer-text">⏱️ 20s</span>
-        <span style="font-weight:700; color:var(--green);" id="score-display">Pontos: ${state.score}</span>
-      </div>
-
-      <div class="cards-grid">
-        ${cardsGrid}
-      </div>
-    </div>
-  `;
-}
-
-function renderVictory() {
-  return `
-    <div class="card-box">
-      <div class="mascot">${state.matchedPairsCount === state.customPairs.length ? '🏆' : '⏳'}</div>
-      <h2>${state.matchedPairsCount === state.customPairs.length ? 'Félicitations!' : 'Fim da Rodada!'}</h2>
-
-      <div class="winner-podium">
-        <div class="winner-avatar-frame">
-          <img src="${state.avatarUrl}" alt="Avatar Campeão" onerror="this.src='https://via.placeholder.com/110?text=Winner'">
-        </div>
-        <h3 style="color:var(--purple); font-size:22px; font-weight:800;">${state.userName}</h3>
-      </div>
-
-      <div class="stats-grid">
-        <div class="stat-box">
-          <div class="stat-number">${state.score}</div>
-          <div class="stat-label">Pontuação Total</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-number">${state.attempts}</div>
-          <div class="stat-label">Tentativas</div>
-        </div>
-      </div>
-
-      <button class="btn btn-green btn-block" onclick="playSound('click'); restartGame();">🔄 Jogar Novamente</button>
-      <button class="btn btn-block" style="margin-top:8px; background:#ccc; box-shadow:0 4px 0 #aaa;" onclick="playSound('click'); setScreen('home');">Início</button>
-    </div>
-  `;
-}
-
 /* =========================================================
-   6. TIMER E TROCA DE TURNO (20 SEGUNDOS)
+   6. TIMER E TROCA DE TURNO (20 SEGUNDOS POR JOGADA)
    ========================================================= */
 function startTimer() {
   clearInterval(state.timerInterval);
   state.timeLeft = 20;
   state.timeAudioPlayed = false;
 
+  const timerText = document.getElementById('timer-text');
+  const timerBar = document.getElementById('timer-bar');
+  if (timerText) timerText.innerText = `⏱️ 20s`;
+  if (timerBar) timerBar.style.width = `100%`;
+
   state.timerInterval = setInterval(() => {
     state.timeLeft -= 1;
     
-    const timerText = document.getElementById('timer-text');
-    const timerBar = document.getElementById('timer-bar');
-
     if (timerText) timerText.innerText = `⏱️ ${state.timeLeft}s`;
     if (timerBar) {
       const percentage = (state.timeLeft / 20) * 100;
@@ -473,8 +573,6 @@ function startTimer() {
 
       if (isFirebaseActive && (state.isHost || state.userName === state.activePlayerId)) {
         passTurnToNextPlayer();
-      } else if (!isFirebaseActive) {
-        setScreen('victory');
       }
     }
   }, 1000);
@@ -494,7 +592,7 @@ function passTurnToNextPlayer() {
 }
 
 /* =========================================================
-   7. MULTIPLAYER E SINCRONIZAÇÃO
+   7. MULTIPLAYER E SINCRONIZAÇÃO EM TEMPO REAL
    ========================================================= */
 function startHostFlow() {
   state.isHost = true;
@@ -517,6 +615,8 @@ function generateRoomAndPin() {
       cards: state.cards,
       currentTurnIndex: 0,
       activePlayerId: '',
+      matchedPairsCount: 0,
+      totalPairs: state.customPairs.length,
       players: {}
     });
 
@@ -536,10 +636,14 @@ function listenRoomUpdates() {
     state.cards = room.cards || [];
     state.currentTurnIndex = room.currentTurnIndex || 0;
     state.activePlayerId = room.activePlayerId || '';
+    state.matchedPairsCount = room.matchedPairsCount || 0;
 
     if (room.players) {
       const playersArray = Object.values(room.players);
       state.players = playersArray.sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
+      
+      const me = state.players.find(p => p.name === state.userName);
+      if (me) state.score = me.score || 0;
     }
 
     if (room.status === 'playing') {
@@ -547,11 +651,16 @@ function listenRoomUpdates() {
         setScreen('teacher_dashboard');
       } else if (!state.isHost && state.currentScreen !== 'game') {
         setScreen('game');
-      } else if (!state.isHost) {
+      } else if (!state.isHost && state.currentScreen === 'game') {
         updateTurnHUD();
       }
-    } else if (state.currentScreen === 'host_lobby') {
-      render();
+    } else if (room.status === 'waiting') {
+      if (state.currentScreen === 'host_lobby' || state.currentScreen === 'student_lobby') {
+        render();
+      }
+    } else if (room.status === 'finished') {
+      clearInterval(state.timerInterval);
+      setScreen('victory');
     }
   });
 }
@@ -564,8 +673,6 @@ function startMultiplayerGame() {
       currentTurnIndex: 0,
       activePlayerId: firstPlayer.name
     });
-  } else if (!isFirebaseActive) {
-    setScreen('game');
   }
 }
 
@@ -588,7 +695,6 @@ function joinRoom() {
   state.isHost = false;
   state.score = 0;
   state.attempts = 0;
-  state.matchedPairsCount = 0;
 
   if (isFirebaseActive) {
     const playerRef = db.ref(`rooms/${pin}/players/${name}`);
@@ -600,6 +706,7 @@ function joinRoom() {
     });
 
     listenRoomUpdates();
+    setScreen('student_lobby');
   } else {
     setupCards();
     setScreen('game');
@@ -660,22 +767,28 @@ function checkMatch() {
     document.getElementById(`card-${card1.index}`).classList.add('matched');
     document.getElementById(`card-${card2.index}`).classList.add('matched');
     
-    state.score += 10;
+    state.score += 1; // 1 par = 1 ponto
     state.matchedPairsCount += 1;
 
     if (isFirebaseActive) {
       db.ref(`rooms/${state.pin}/players/${state.userName}`).update({ score: state.score });
+      db.ref(`rooms/${state.pin}`).update({ matchedPairsCount: state.matchedPairsCount });
     }
 
     const scoreEl = document.getElementById('score-display');
-    if (scoreEl) scoreEl.innerText = `Pontos: ${state.score}`;
+    if (scoreEl) scoreEl.innerText = `Seus Pares: ${state.score}`;
 
     resetTurn();
 
     if (state.matchedPairsCount === state.customPairs.length) {
       clearInterval(state.timerInterval);
-      setTimeout(() => setScreen('victory'), 600);
+      if (isFirebaseActive) {
+        db.ref(`rooms/${state.pin}`).update({ status: 'finished' });
+      } else {
+        setTimeout(() => setScreen('victory'), 600);
+      }
     } else {
+      // Se acertou, ganha uma nova chance e o tempo recomeça em 20s
       startTimer();
     }
   } else {
@@ -685,8 +798,11 @@ function checkMatch() {
       document.getElementById(`card-${card2.index}`).classList.remove('flipped');
       resetTurn();
 
+      // Se errou, passa o turno para o próximo e o tempo recomeça em 20s
       if (isFirebaseActive) {
         passTurnToNextPlayer();
+      } else {
+        startTimer();
       }
     }, 1000);
   }
@@ -697,16 +813,8 @@ function resetTurn() {
   state.isLockBoard = false;
 }
 
-function restartGame() {
-  state.score = 0;
-  state.attempts = 0;
-  state.matchedPairsCount = 0;
-  setupCards();
-  setScreen('game');
-}
-
 /* =========================================================
-   9. GESTÃO DE PARES E EXPORTAÇÃO
+   9. GESTÃO DE PARES E RELATÓRIO
    ========================================================= */
 function addPair() {
   state.customPairs.push({
@@ -783,19 +891,20 @@ function importPairsJSON(input) {
 
 function generatePDFReport() {
   const printWindow = window.open('', '_blank');
+  const sortedPlayers = [...state.players].sort((a, b) => (b.score || 0) - (a.score || 0));
   
-  const rows = state.players.map((p, i) => `
+  const rows = sortedPlayers.map((p, i) => `
     <tr>
       <td style="padding:8px; border:1px solid #ccc;">${i + 1}º</td>
       <td style="padding:8px; border:1px solid #ccc;">${p.name}</td>
-      <td style="padding:8px; border:1px solid #ccc; text-align:center;">${p.score || 0}</td>
+      <td style="padding:8px; border:1px solid #ccc; text-align:center;">${p.score || 0} pares</td>
     </tr>
   `).join('');
 
   const htmlContent = `
     <html>
       <head>
-        <title>Relatório de Desempenho - Jeu de Mémorisation</title>
+        <title>Relatório - Jeu de Mémorisation</title>
         <style>
           body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
           h1 { color: #6A4C93; }
@@ -813,7 +922,7 @@ function generatePDFReport() {
             <tr>
               <th>Posição</th>
               <th>Aluno</th>
-              <th>Pontuação Final</th>
+              <th>Pares Encontrados</th>
             </tr>
           </thead>
           <tbody>
