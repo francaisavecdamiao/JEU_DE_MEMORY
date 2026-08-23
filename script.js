@@ -19,11 +19,10 @@ function playSound(name) {
 let cachedVoices = [];
 function preloadVoices() {
   if ('speechSynthesis' in window) {
-    cachedVoices = window.speechSynthesis.getVoices();
+    const loadVoices = () => { cachedVoices = window.speechSynthesis.getVoices(); };
+    loadVoices();
     if (speechSynthesis.onvoiceschanged !== undefined) {
-      speechSynthesis.onvoiceschanged = () => {
-        cachedVoices = window.speechSynthesis.getVoices();
-      };
+      speechSynthesis.onvoiceschanged = loadVoices;
     }
   }
 }
@@ -38,6 +37,12 @@ function speakFrench(text) {
     const frenchVoice = cachedVoices.find(voice => voice.lang.includes('fr'));
     if (frenchVoice) utterance.voice = frenchVoice;
     window.speechSynthesis.speak(utterance);
+  }
+}
+
+function triggerConfetti() {
+  if (typeof confetti === 'function') {
+    confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
   }
 }
 
@@ -96,7 +101,6 @@ const state = {
     { id: 2, itemA: { type: 'text', value: 'Merci' }, itemB: { type: 'text', value: 'Obrigado' } }
   ],
   cards: [],
-  flippedCards: [],
   isLockBoard: false
 };
 
@@ -135,7 +139,7 @@ function render() {
       app.innerHTML = firebaseNotice + renderStudentLobby();
       break;
     case 'teacher_dashboard':
-      app.innerHTML = renderGame(true); // Exibe visão completa com grid e ranking no professor
+      app.innerHTML = renderGame(true);
       break;
     case 'game':
       app.innerHTML = renderGame(false);
@@ -315,7 +319,6 @@ function renderStudentLobby() {
 function renderGame(isTeacher = false) {
   const isMyTurn = state.userName === state.activePlayerId && !isTeacher;
 
-  // Ordena corretamente os 5 melhores jogadores (Ranking Superior)
   const topPlayers = [...state.players]
     .sort((a, b) => (b.score || 0) - (a.score || 0))
     .slice(0, 5);
@@ -328,7 +331,6 @@ function renderGame(isTeacher = false) {
     </div>
   `).join('');
 
-  // Renderiza as cartas refletindo o estado global (flipped e matched)
   const cardsGrid = state.cards.map((c, index) => {
     const isFlipped = c.isFlipped || c.isMatched;
     const isMatchedClass = c.isMatched ? 'matched' : '';
@@ -347,7 +349,6 @@ function renderGame(isTeacher = false) {
   }).join('');
 
   return `
-    <!-- Top 5 Ranking Superior -->
     <div style="width:100%; max-width:600px; margin-bottom:12px; overflow-x:auto;">
       <div style="display:flex; justify-content:center; gap:8px;">
         ${leaderboardCards}
@@ -369,7 +370,7 @@ function renderGame(isTeacher = false) {
         <div class="timer-bar" id="timer-bar" style="width:${(state.timeLeft / 20) * 100}%"></div>
       </div>
 
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <div style="display:flex; justify-space-between; align-items:center; margin-bottom:12px;">
         <span style="font-weight:700; color:var(--red);" id="timer-text">⏱️ ${state.timeLeft}s</span>
         ${!isTeacher ? `<span style="font-weight:700; color:var(--green);" id="score-display">Seus Pares: ${state.score}</span>` : `<button class="btn btn-purple" style="padding:4px 10px; font-size:12px;" onclick="generatePDFReport()">📄 PDF</button>`}
       </div>
@@ -490,7 +491,6 @@ function syncTimer(turnStartTime) {
       clearInterval(state.timerInterval);
       playSound('alert');
 
-      // O Host gerencia a passagem do turno por estouro do tempo
       if (isFirebaseActive && state.isHost) {
         passTurnToNextPlayer();
       }
@@ -498,57 +498,21 @@ function syncTimer(turnStartTime) {
   }, 500);
 }
 
-// ---------------------------------------------------------------------
-// BUGFIX: passagem de turno agora é uma TRANSAÇÃO ATÔMICA do Firebase.
-//
-// Antes, esta função calculava o "próximo jogador" e os "cards atualizados"
-// usando o estado LOCAL (state.currentTurnIndex / state.cards), que podia
-// estar desatualizado. Isso causava uma race condition real:
-//   1) O jogador ativo erra um par -> depois de 1200ms chama passTurnToNextPlayer().
-//   2) Quase ao mesmo tempo, o cronômetro do HOST chega a 0 -> ele também
-//      chama passTurnToNextPlayer() (independentemente).
-//   3) As duas chamadas partem de um "currentTurnIndex" e "cards" locais
-//      que podem não refletir o que já foi gravado pela outra chamada.
-//      Resultado: o turno "volta" para o mesmo jogador (ele continua
-//      jogando até o tempo acabar de novo) e pares recém-acertados podem
-//      ser sobrescritos por uma foto antiga do baralho (parece que o
-//      "baralho reiniciou").
-//
-// Com transaction(), o Firebase sempre lê o valor MAIS RECENTE gravado no
-// servidor no momento da escrita e, se algo mudar no meio do caminho,
-// executa a função de novo automaticamente. Assim as duas chamadas nunca
-// se pisam: a segunda sempre enxerga o resultado da primeira e avança
-// corretamente para o jogador seguinte, sem nunca desfazer pares já
-// acertados.
-// ---------------------------------------------------------------------
-let turnPassInFlight = false;
-
 function passTurnToNextPlayer() {
-  if (!isFirebaseActive || !state.pin || turnPassInFlight) return;
-  turnPassInFlight = true;
+  if (!isFirebaseActive || !state.pin || state.players.length === 0) return;
 
-  db.ref(`rooms/${state.pin}`).transaction((room) => {
-    if (!room) return room;
+  const totalPlayers = state.players.length;
+  const nextIndex = (state.currentTurnIndex + 1) % totalPlayers;
+  const nextPlayer = state.players[nextIndex];
 
-    const playersList = room.players
-      ? Object.values(room.players).sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0))
-      : [];
-    if (playersList.length === 0) return room;
+  // Mantém as cartas combinadas e desvira apenas as incorretas
+  const updatedCards = state.cards.map(c => c.isMatched ? c : { ...c, isFlipped: false });
 
-    const nextIndex = ((room.currentTurnIndex || 0) + 1) % playersList.length;
-    const nextPlayer = playersList[nextIndex];
-
-    // Sempre parte dos cards mais recentes do SERVIDOR (não do state local),
-    // e nunca desfaz pares já marcados como isMatched.
-    const serverCards = room.cards || state.cards;
-    room.cards = serverCards.map(c => (c.isMatched ? c : { ...c, isFlipped: false }));
-    room.currentTurnIndex = nextIndex;
-    room.activePlayerId = nextPlayer ? nextPlayer.name : room.activePlayerId;
-    room.turnStartTime = Date.now();
-
-    return room;
-  }, () => {
-    turnPassInFlight = false;
+  db.ref(`rooms/${state.pin}`).update({
+    currentTurnIndex: nextIndex,
+    activePlayerId: nextPlayer.name,
+    turnStartTime: Date.now(),
+    cards: updatedCards
   });
 }
 
@@ -595,7 +559,11 @@ function listenRoomUpdates() {
     const room = snapshot.val();
     if (!room) return;
 
-    state.cards = room.cards || [];
+    // Atualiza cartas diretamente mantendo estado local e evitando glitches
+    if (room.cards) {
+      state.cards = room.cards;
+    }
+
     state.currentTurnIndex = room.currentTurnIndex || 0;
     state.activePlayerId = room.activePlayerId || '';
     state.matchedPairsCount = room.matchedPairsCount || 0;
@@ -619,7 +587,7 @@ function listenRoomUpdates() {
       } else if (!state.isHost && state.currentScreen !== 'game') {
         setScreen('game');
       } else {
-        render(); // Re-renderiza para atualizar as cartas viradas e o ranking
+        render();
       }
     } else if (room.status === 'waiting') {
       if (state.currentScreen === 'host_lobby' || state.currentScreen === 'student_lobby') {
@@ -693,7 +661,7 @@ function setupCards() {
 
 function flipCard(index) {
   if (state.isLockBoard) return;
-  if (state.userName !== state.activePlayerId && isFirebaseActive) return; // Apenas o jogador do turno clica
+  if (state.userName !== state.activePlayerId && isFirebaseActive) return;
 
   const card = state.cards[index];
   if (card.isFlipped || card.isMatched) return;
@@ -704,20 +672,17 @@ function flipCard(index) {
     speakFrench(card.val);
   }
 
-  // Atualiza no estado local
   state.cards[index].isFlipped = true;
+  render();
 
-  const currentlyFlipped = state.cards.filter((c, i) => c.isFlipped && !c.isMatched);
+  if (isFirebaseActive) {
+    db.ref(`rooms/${state.pin}/cards`).set(state.cards);
+  }
+
+  const currentlyFlipped = state.cards.filter(c => c.isFlipped && !c.isMatched);
 
   if (currentlyFlipped.length === 2) {
-    // checkMatch cuida de enviar o estado ao Firebase (evita gravação duplicada/concorrente)
     checkMatch(currentlyFlipped);
-  } else if (isFirebaseActive) {
-    // Apenas 1 carta virada até agora: sincroniza já, para os espectadores verem sem atraso.
-    // IMPORTANTE: sempre gravar em rooms/{pin} (nunca em um sub-caminho separado como
-    // rooms/{pin}/cards), para não haver duas gravações concorrentes brigando pelo
-    // mesmo dado e causando atraso/flicker para quem está assistindo.
-    db.ref(`rooms/${state.pin}`).update({ cards: state.cards });
   }
 }
 
@@ -725,17 +690,9 @@ function checkMatch(flippedTwo) {
   state.isLockBoard = true;
   const [card1, card2] = flippedTwo;
 
-  if (isFirebaseActive) {
-    // Mostra as 2 cartas reveladas para TODOS imediatamente (sem esperar o resultado
-    // do match nem o delay de 1200ms do erro). Isso é o que corrige o atraso que os
-    // espectadores viam antes de a carta aparecer virada.
-    db.ref(`rooms/${state.pin}`).update({ cards: state.cards });
-  }
-
   if (card1.pairId === card2.pairId) {
     playSound('ok');
     
-    // Marca como matched no array
     state.cards.forEach(c => {
       if (c.pairId === card1.pairId) c.isMatched = true;
     });
@@ -748,31 +705,34 @@ function checkMatch(flippedTwo) {
       db.ref(`rooms/${state.pin}`).update({
         cards: state.cards,
         matchedPairsCount: state.matchedPairsCount,
-        turnStartTime: Date.now() // Reinicia o relógio em 20s para a nova jogada do mesmo jogador
+        turnStartTime: Date.now() // Reinicia o cronômetro para o jogador que acertou continuar sua vez
       });
     }
 
     state.isLockBoard = false;
 
-    if (state.matchedPairsCount === state.customPairs.length) {
+    if (state.matchedPairsCount === (isFirebaseActive ? state.cards.length / 2 : state.customPairs.length)) {
       clearInterval(state.timerInterval);
       if (isFirebaseActive) {
         db.ref(`rooms/${state.pin}`).update({ status: 'finished' });
+      } else {
+        setScreen('victory');
       }
     }
   } else {
+    // Quando erra, aguarda a animação e passa a vez imediatamente
     setTimeout(() => {
       playSound('falha');
       
-      // Desvira as duas cartas ativas
-      state.cards.forEach(c => {
-        if (!c.isMatched) c.isFlipped = false;
-      });
-
       state.isLockBoard = false;
 
       if (isFirebaseActive) {
-        passTurnToNextPlayer(); // Passa o turno e o próximo tempo inicia em 20s
+        passTurnToNextPlayer();
+      } else {
+        state.cards.forEach(c => {
+          if (!c.isMatched) c.isFlipped = false;
+        });
+        render();
       }
     }, 1200);
   }
@@ -858,53 +818,41 @@ function generatePDFReport() {
     <tr>
       <td style="padding:8px; border:1px solid #ccc;">${i + 1}º</td>
       <td style="padding:8px; border:1px solid #ccc;">${p.name}</td>
-      <td style="padding:8px; border:1px solid #ccc; text-align:center;">${p.score || 0} pares</td>
+      <td style="padding:8px; border:1px solid #ccc;">${p.score || 0} pares</td>
     </tr>
   `).join('');
 
-  const htmlContent = `
+  printWindow.document.write(`
     <html>
       <head>
-        <title>Relatório - Jeu de Mémorisation</title>
+        <title>Relatório da Partida - PIN: ${state.pin}</title>
         <style>
-          body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
-          h1 { color: #6A4C93; }
-          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-          th { background: #6A4C93; color: white; padding: 10px; border: 1px solid #ccc; }
+          body { font-family: Arial, sans-serif; padding: 20px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+          th { background-color: #f2f2f2; }
         </style>
       </head>
       <body>
-        <h1>📊 Relatório da Aula - Francês</h1>
-        <p><strong>PIN da Sala:</strong> ${state.pin}</p>
-        <p><strong>Data:</strong> ${new Date().toLocaleDateString('pt-BR')}</p>
+        <h2>Relatório de Desempenho - Jeu de Mémorisation</h2>
+        <p><strong>Sala (PIN):</strong> ${state.pin}</p>
         <table>
           <thead>
             <tr>
               <th>Posição</th>
-              <th>Aluno</th>
-              <th>Pares Encontrados</th>
+              <th>Jogador</th>
+              <th>Pontuação</th>
             </tr>
           </thead>
-          <tbody>${rows}</tbody>
+          <tbody>
+            ${rows}
+          </tbody>
         </table>
-        <script>window.onload = function() { window.print(); }</script>
+        <script>
+          window.onload = function() { window.print(); window.close(); };
+        </script>
       </body>
     </html>
-  `;
-
-  printWindow.document.write(htmlContent);
+  `);
   printWindow.document.close();
 }
-
-function triggerConfetti() {
-  if (typeof confetti === 'function') {
-    confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
-  }
-}
-
-/* =========================================================
-   11. INICIALIZAÇÃO
-   ========================================================= */
-document.addEventListener('DOMContentLoaded', () => {
-  render();
-});
