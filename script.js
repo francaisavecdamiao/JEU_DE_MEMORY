@@ -32,22 +32,17 @@ preloadVoices();
 function speakFrench(text) {
   if ('speechSynthesis' in window) {
     window.speechSynthesis.cancel();
-    
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'fr-FR';
     utterance.rate = 0.9;
-
     const frenchVoice = cachedVoices.find(voice => voice.lang.includes('fr'));
-    if (frenchVoice) {
-      utterance.voice = frenchVoice;
-    }
-
+    if (frenchVoice) utterance.voice = frenchVoice;
     window.speechSynthesis.speak(utterance);
   }
 }
 
 /* =========================================================
-   2. CONFIGURAÇÃO E VALIDAÇÃO DO FIREBASE
+   2. CONFIGURAÇÃO DO FIREBASE
    ========================================================= */
 const firebaseConfig = {
   apiKey: "AIzaSyCqLZqaJkIMLJyqRDdXfa8gMjZx8kIwHCw",
@@ -86,8 +81,7 @@ const state = {
   selectedChar: initialChar,
   selectedSkin: initialSkin,
   avatarUrl: `assets/${encodeURIComponent(initialFileName)}.png`,
-  score: 0, // representará o número de pares acertados (1 par = 1 ponto)
-  attempts: 0,
+  score: 0,
   timeLeft: 20,
   timerInterval: null,
   timeAudioPlayed: false,
@@ -96,6 +90,7 @@ const state = {
   players: [],
   currentTurnIndex: 0,
   activePlayerId: null,
+  turnStartTime: 0,
   customPairs: [
     { id: 1, itemA: { type: 'text', value: 'Bonjour' }, itemB: { type: 'text', value: 'Olá' } },
     { id: 2, itemA: { type: 'text', value: 'Merci' }, itemB: { type: 'text', value: 'Obrigado' } }
@@ -140,11 +135,10 @@ function render() {
       app.innerHTML = firebaseNotice + renderStudentLobby();
       break;
     case 'teacher_dashboard':
-      app.innerHTML = renderTeacherDashboard();
+      app.innerHTML = renderGame(true); // Exibe visão completa com grid e ranking no professor
       break;
     case 'game':
-      app.innerHTML = renderGame();
-      startTimer();
+      app.innerHTML = renderGame(false);
       break;
     case 'victory':
       app.innerHTML = renderVictory();
@@ -156,7 +150,7 @@ function render() {
 }
 
 /* =========================================================
-   5. TELAS
+   5. TELAS PRINCIPAIS
    ========================================================= */
 function renderHome() {
   return `
@@ -211,22 +205,14 @@ function renderHostCreate() {
     <div class="card-box">
       <div class="mascot">🎓</div>
       <h2>Criar Jogo da Memória</h2>
-      
       <div style="display:flex; gap:10px; margin-bottom:14px;">
         <button class="btn btn-blue" style="font-size:12px; padding:8px; flex:1;" onclick="exportPairsJSON()">💾 Exportar (.JSON)</button>
         <button class="btn btn-purple" style="font-size:12px; padding:8px; flex:1;" onclick="document.getElementById('import-file').click()">📂 Importar</button>
         <input type="file" id="import-file" accept=".json" style="display:none;" onchange="importPairsJSON(this)">
       </div>
-
-      <div style="display:flex; flex-direction:column; gap:12px;">
-        ${pairsHtml}
-      </div>
-
-      <button class="btn btn-blue" style="font-size:14px; padding:10px; margin-top:12px;" onclick="playSound('click'); addPair();">
-        + Adicionar Novo Par
-      </button>
+      <div style="display:flex; flex-direction:column; gap:12px;">${pairsHtml}</div>
+      <button class="btn btn-blue" style="font-size:14px; padding:10px; margin-top:12px;" onclick="playSound('click'); addPair();">+ Adicionar Novo Par</button>
     </div>
-
     <div style="margin-top:16px;">
       <button class="btn btn-purple btn-block" onclick="playSound('click'); generateRoomAndPin();">Gerar PIN e Abrir Sala</button>
       <button class="btn btn-block" style="margin-top:8px; background:#ccc; box-shadow:0 4px 0 #aaa;" onclick="playSound('click'); setScreen('home');">Voltar</button>
@@ -236,7 +222,7 @@ function renderHostCreate() {
 
 function renderHostLobby() {
   const playerList = state.players.map((p, idx) => `
-    <li style="background:white; padding:8px 12px; border-radius:8px; margin-bottom:6px; font-weight:700; display:flex; align-items:center; justify-space-between;">
+    <li style="background:white; padding:8px 12px; border-radius:8px; margin-bottom:6px; font-weight:700; display:flex; align-items:center; justify-content:space-between;">
       <div style="display:flex; align-items:center; gap:10px;">
         <img src="${p.avatar || 'https://via.placeholder.com/35'}" style="width:35px; height:35px; border-radius:50%; object-fit:cover;">
         <span>${p.name}</span>
@@ -248,18 +234,13 @@ function renderHostLobby() {
   return `
     <div class="card-box">
       <h2>Sala Criada!</h2>
-      <p style="color:var(--text-light)">Passe o PIN abaixo para os alunos:</p>
-      
-      <div style="font-size:36px; font-family:'Baloo 2'; font-weight:800; color:var(--purple); background:var(--bg); padding:10px; border-radius:12px; margin:12px 0;">
-        ${state.pin}
-      </div>
-
+      <p style="color:var(--text-light)">Passe o PIN para os alunos:</p>
+      <div style="font-size:36px; font-family:'Baloo 2'; font-weight:800; color:var(--purple); background:var(--bg); padding:10px; border-radius:12px; margin:12px 0;">${state.pin}</div>
       <h3>Alunos Conectados (${state.players.length}):</h3>
       <ul style="list-style:none; padding:0; text-align:left; max-height:200px; overflow-y:auto;">
         ${playerList.length > 0 ? playerList : '<li style="color:#aaa; text-align:center;">Aguardando alunos entrarem...</li>'}
       </ul>
     </div>
-
     <div style="margin-top:16px;">
       <button class="btn btn-green btn-block" onclick="playSound('click'); startMultiplayerGame();">🚀 Iniciar Jogo Agora</button>
     </div>
@@ -267,33 +248,21 @@ function renderHostLobby() {
 }
 
 function renderStudentJoin() {
-  const characters = [
-    'AGNÈS', 'BÉATRICE', 'CHARLOTTE', 'CÉCILE', 
-    'JACQUES', 'JULIEN', 'MARGOT', 'MARIE', 
-    'MATHIEU', 'MONIQUE', 'PHILLIPE', 'PIERRE'
-  ];
-
-  const charOptions = characters.map(char => `
-    <option value="${char}" ${state.selectedChar === char ? 'selected' : ''}>${char}</option>
-  `).join('');
+  const characters = ['AGNÈS', 'BÉATRICE', 'CHARLOTTE', 'CÉCILE', 'JACQUES', 'JULIEN', 'MARGOT', 'MARIE', 'MATHIEU', 'MONIQUE', 'PHILLIPE', 'PIERRE'];
+  const charOptions = characters.map(char => `<option value="${char}" ${state.selectedChar === char ? 'selected' : ''}>${char}</option>`).join('');
 
   return `
     <div class="card-box">
       <div class="mascot">✏️</div>
       <h2>Entrar na Sala</h2>
-      
       <div style="display:flex; flex-direction:column; gap:12px; margin-top:14px;">
         <input type="text" id="student-name" class="input-field" placeholder="Seu Nickname / Apelido" value="${state.userName}">
         <input type="number" id="student-pin" class="input-field" placeholder="PIN da Sala (6 dígitos)" value="${state.pin}">
-        
         <div class="avatar-selection-box">
           <div style="width:100%; text-align:left;">
             <label style="font-weight:700; font-size:13px; color:var(--text-light);">Escolha seu Personagem:</label>
-            <select id="select-char" class="input-field" style="margin-top:4px;" onchange="updateAvatarDOM()">
-              ${charOptions}
-            </select>
+            <select id="select-char" class="input-field" style="margin-top:4px;" onchange="updateAvatarDOM()">${charOptions}</select>
           </div>
-
           <div style="width:100%; text-align:left;">
             <label style="font-weight:700; font-size:13px; color:var(--text-light);">Escolha a Variação (Skin):</label>
             <select id="select-skin" class="input-field" style="margin-top:4px;" onchange="updateAvatarDOM()">
@@ -301,16 +270,13 @@ function renderStudentJoin() {
               <option value="01" ${state.selectedSkin === '01' ? 'selected' : ''}>Roupa 01</option>
             </select>
           </div>
-
           <div class="avatar-preview-container">
-            <img id="avatar-img-preview" src="${state.avatarUrl}" alt="Preview Personagem" onerror="this.src='https://via.placeholder.com/90?text=Avatar'">
+            <img id="avatar-img-preview" src="${state.avatarUrl}" alt="Preview" onerror="this.src='https://via.placeholder.com/90?text=Avatar'">
           </div>
         </div>
-
         <button class="btn btn-blue btn-block" onclick="playSound('click'); joinRoom();">Entrar na Sala</button>
       </div>
     </div>
-
     <div style="margin-top:16px;">
       <button class="btn btn-block" style="background:#ccc; box-shadow:0 4px 0 #aaa;" onclick="playSound('click'); setScreen('home');">Voltar</button>
     </div>
@@ -319,7 +285,7 @@ function renderStudentJoin() {
 
 function renderStudentLobby() {
   const playerList = state.players.map((p, idx) => `
-    <li style="background:white; padding:10px; border-radius:10px; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; box-shadow:0 2px 4px rgba(0,0,0,0.05);">
+    <li style="background:white; padding:10px; border-radius:10px; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
       <div style="display:flex; align-items:center; gap:12px;">
         <img src="${p.avatar || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover; border:2px solid var(--purple);">
         <span style="font-weight:700;">${p.name} ${p.name === state.userName ? '(Você)' : ''}</span>
@@ -332,11 +298,9 @@ function renderStudentLobby() {
     <div class="card-box">
       <h2>Sala de Espera</h2>
       <p style="color:var(--text-light)">PIN da Sala: <strong>${state.pin}</strong></p>
-      
       <div style="margin:16px 0; background:#FFF3CD; padding:10px; border-radius:8px; font-weight:700; color:#856404; animation: pulse 1.5s infinite;">
         ⏳ Aguardando o professor iniciar o jogo...
       </div>
-
       <h3 style="text-align:left; font-size:14px; color:var(--text-light); margin-bottom:10px;">Ordem dos Participantes:</h3>
       <ul style="list-style:none; padding:0; text-align:left; max-height:220px; overflow-y:auto;">
         ${playerList.length > 0 ? playerList : '<li>Aguardando outros jogadores...</li>'}
@@ -345,53 +309,13 @@ function renderStudentLobby() {
   `;
 }
 
-function renderTeacherDashboard() {
-  const sortedPlayers = [...state.players].sort((a, b) => (b.score || 0) - (a.score || 0));
+/* =========================================================
+   6. TELA DO JOGO (UTILIZADA TANTO PARA ALUNO QUANTO PROFESSOR)
+   ========================================================= */
+function renderGame(isTeacher = false) {
+  const isMyTurn = state.userName === state.activePlayerId && !isTeacher;
 
-  const playersTable = sortedPlayers.map((p, idx) => `
-    <tr style="border-bottom: 1px solid var(--border);">
-      <td style="padding:10px; font-weight:700;">${idx + 1}º</td>
-      <td style="padding:10px; font-weight:700; display:flex; align-items:center; gap:8px;">
-        <img src="${p.avatar}" style="width:30px; height:30px; border-radius:50%;">
-        ${p.name}
-      </td>
-      <td style="padding:10px; text-align:center; font-weight:800; color:var(--purple);">${p.score || 0} pares</td>
-      <td style="padding:10px; text-align:center;">
-        ${p.name === state.activePlayerId ? '🟢 Jogando' : '⏳ Aguardando'}
-      </td>
-    </tr>
-  `).join('');
-
-  return `
-    <div class="card-box" style="max-width:650px;">
-      <h2>📊 Painel do Professor (Ao Vivo)</h2>
-      <p style="color:var(--text-light); margin-bottom:14px;">PIN da Sala: <strong>${state.pin}</strong></p>
-
-      <table style="width:100%; border-collapse:collapse; margin-top:10px; text-align:left;">
-        <thead>
-          <tr style="background:var(--bg); color:var(--text-light); font-size:13px;">
-            <th style="padding:8px;">Pos</th>
-            <th style="padding:8px;">Aluno</th>
-            <th style="padding:8px; text-align:center;">Pares</th>
-            <th style="padding:8px; text-align:center;">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${playersTable}
-        </tbody>
-      </table>
-
-      <div style="margin-top:20px;">
-        <button class="btn btn-purple btn-block" onclick="generatePDFReport()">📄 Gerar Relatório em PDF</button>
-      </div>
-    </div>
-  `;
-}
-
-function renderGame() {
-  const isMyTurn = state.userName === state.activePlayerId || !isFirebaseActive;
-
-  // Ordenação para o Top 5
+  // Ordena corretamente os 5 melhores jogadores (Ranking Superior)
   const topPlayers = [...state.players]
     .sort((a, b) => (b.score || 0) - (a.score || 0))
     .slice(0, 5);
@@ -399,24 +323,31 @@ function renderGame() {
   const leaderboardCards = topPlayers.map((p, idx) => `
     <div style="display:flex; flex-direction:column; align-items:center; background:white; padding:6px 8px; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,0.1); min-width:65px;">
       <img src="${p.avatar || 'https://via.placeholder.com/35'}" style="width:35px; height:35px; border-radius:50%; object-fit:cover; border:2px solid ${idx === 0 ? '#FFD700' : 'var(--purple)'};">
-      <span style="font-size:11px; font-weight:800; text-overflow:ellipsis; overflow:hidden; max-width:60px; white-space:nowrap; margin-top:2px;">${p.name}</span>
+      <span style="font-size:11px; font-weight:800; max-width:60px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:2px;">${p.name}</span>
       <span style="font-size:10px; font-weight:700; color:var(--purple);">${p.score || 0} ${p.score === 1 ? 'par' : 'pares'}</span>
     </div>
   `).join('');
 
-  const cardsGrid = state.cards.map((c, index) => `
-    <div class="memory-card" id="card-${index}" onclick="flipCard(${index})">
-      <div class="card-inner">
-        <div class="card-back">❓</div>
-        <div class="card-front">
-          ${c.type === 'image' ? `<img src="${c.val}" alt="imagem">` : `<span>${c.val}</span>`}
+  // Renderiza as cartas refletindo o estado global (flipped e matched)
+  const cardsGrid = state.cards.map((c, index) => {
+    const isFlipped = c.isFlipped || c.isMatched;
+    const isMatchedClass = c.isMatched ? 'matched' : '';
+    const isFlippedClass = isFlipped ? 'flipped' : '';
+
+    return `
+      <div class="memory-card ${isFlippedClass} ${isMatchedClass}" id="card-${index}" onclick="${!isTeacher ? `flipCard(${index})` : ''}">
+        <div class="card-inner">
+          <div class="card-back">❓</div>
+          <div class="card-front">
+            ${c.type === 'image' ? `<img src="${c.val}" alt="imagem">` : `<span>${c.val}</span>`}
+          </div>
         </div>
       </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 
   return `
-    <!-- Top 5 Leaderboard Superior -->
+    <!-- Top 5 Ranking Superior -->
     <div style="width:100%; max-width:600px; margin-bottom:12px; overflow-x:auto;">
       <div style="display:flex; justify-content:center; gap:8px;">
         ${leaderboardCards}
@@ -426,21 +357,21 @@ function renderGame() {
     <div class="card-box" style="max-width:600px;">
       <div class="player-hud">
         <div class="player-info">
-          <img src="${state.avatarUrl}" class="hud-avatar" alt="Avatar">
-          <span class="hud-nickname">${state.userName || 'Jogador'}</span>
+          <img src="${isTeacher ? 'assets/MARIE.png' : state.avatarUrl}" class="hud-avatar" alt="Avatar">
+          <span class="hud-nickname">${isTeacher ? 'Professor' : state.userName}</span>
         </div>
         <span style="font-weight:700; color:var(--purple);" id="turn-indicator">
-          ${isMyTurn ? "👉 SEU TURNO!" : `Aguardando: ${state.activePlayerId || '...'}`}
+          ${isTeacher ? `Vez de: ${state.activePlayerId || '...'}` : (isMyTurn ? "👉 SEU TURNO!" : `Vez de: ${state.activePlayerId || '...'}`)}
         </span>
       </div>
 
       <div class="timer-container">
-        <div class="timer-bar" id="timer-bar"></div>
+        <div class="timer-bar" id="timer-bar" style="width:${(state.timeLeft / 20) * 100}%"></div>
       </div>
 
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <span style="font-weight:700; color:var(--red);" id="timer-text">⏱️ 20s</span>
-        <span style="font-weight:700; color:var(--green);" id="score-display">Seus Pares: ${state.score}</span>
+        <span style="font-weight:700; color:var(--red);" id="timer-text">⏱️ ${state.timeLeft}s</span>
+        ${!isTeacher ? `<span style="font-weight:700; color:var(--green);" id="score-display">Seus Pares: ${state.score}</span>` : `<button class="btn btn-purple" style="padding:4px 10px; font-size:12px;" onclick="generatePDFReport()">📄 PDF</button>`}
       </div>
 
       <div class="cards-grid">
@@ -475,9 +406,7 @@ function renderVictory() {
       <h2>🏆 Fim da Partida!</h2>
       <p style="color:var(--text-light); margin-bottom:20px;">Todos os pares foram encontrados!</p>
 
-      <!-- Pódio Tradicional em Escada -->
       <div style="display:flex; justify-content:center; align-items:flex-end; gap:10px; margin-bottom:30px; height:180px;">
-        <!-- 2º Lugar -->
         <div style="display:flex; flex-direction:column; align-items:center; flex:1;">
           <img src="${p2.avatar || 'https://via.placeholder.com/45'}" style="width:45px; height:45px; border-radius:50%; border:3px solid #C0C0C0; margin-bottom:4px;">
           <span style="font-size:12px; font-weight:800; max-width:70px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${p2.name}</span>
@@ -485,7 +414,6 @@ function renderVictory() {
           <div style="width:100%; height:80px; background:#C0C0C0; color:white; font-weight:800; display:flex; align-items:center; justify-content:center; border-radius:8px 8px 0 0; font-size:20px;">2</div>
         </div>
 
-        <!-- 1º Lugar -->
         <div style="display:flex; flex-direction:column; align-items:center; flex:1;">
           <img src="${p1.avatar || 'https://via.placeholder.com/60'}" style="width:60px; height:60px; border-radius:50%; border:3px solid #FFD700; margin-bottom:4px;">
           <span style="font-size:13px; font-weight:800; max-width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${p1.name}</span>
@@ -493,7 +421,6 @@ function renderVictory() {
           <div style="width:100%; height:110px; background:#FFD700; color:white; font-weight:800; display:flex; align-items:center; justify-content:center; border-radius:8px 8px 0 0; font-size:26px;">1</div>
         </div>
 
-        <!-- 3º Lugar -->
         <div style="display:flex; flex-direction:column; align-items:center; flex:1;">
           <img src="${p3.avatar || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; border:3px solid #CD7F32; margin-bottom:4px;">
           <span style="font-size:12px; font-weight:800; max-width:70px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${p3.name}</span>
@@ -502,13 +429,10 @@ function renderVictory() {
         </div>
       </div>
 
-      <!-- Restante da Classificação -->
       ${remainingPlayers.length > 0 ? `
         <h3 style="text-align:left; font-size:14px; color:var(--text-light); margin-bottom:8px;">Demais Colocados:</h3>
         <table style="width:100%; border-collapse:collapse; text-align:left; font-size:13px;">
-          <tbody>
-            ${remainingRows}
-          </tbody>
+          <tbody>${remainingRows}</tbody>
         </table>
       ` : ''}
 
@@ -527,9 +451,7 @@ function updateAvatarDOM() {
   state.selectedSkin = skin;
 
   let fileName = char;
-  if (skin !== 'padrao') {
-    fileName += skin;
-  }
+  if (skin !== 'padrao') fileName += skin;
 
   state.avatarUrl = `assets/${encodeURIComponent(fileName)}.png`;
 
@@ -541,26 +463,23 @@ function updateAvatarDOM() {
 }
 
 /* =========================================================
-   6. TIMER E TROCA DE TURNO (20 SEGUNDOS POR JOGADA)
+   7. CRONÔMETRO SINCRONIZADO POR JOGADA
    ========================================================= */
-function startTimer() {
+function syncTimer(turnStartTime) {
   clearInterval(state.timerInterval);
-  state.timeLeft = 20;
+  if (!turnStartTime) return;
+
   state.timeAudioPlayed = false;
 
-  const timerText = document.getElementById('timer-text');
-  const timerBar = document.getElementById('timer-bar');
-  if (timerText) timerText.innerText = `⏱️ 20s`;
-  if (timerBar) timerBar.style.width = `100%`;
-
   state.timerInterval = setInterval(() => {
-    state.timeLeft -= 1;
-    
+    const elapsedSeconds = Math.floor((Date.now() - turnStartTime) / 1000);
+    state.timeLeft = Math.max(0, 20 - elapsedSeconds);
+
+    const timerText = document.getElementById('timer-text');
+    const timerBar = document.getElementById('timer-bar');
+
     if (timerText) timerText.innerText = `⏱️ ${state.timeLeft}s`;
-    if (timerBar) {
-      const percentage = (state.timeLeft / 20) * 100;
-      timerBar.style.width = `${percentage}%`;
-    }
+    if (timerBar) timerBar.style.width = `${(state.timeLeft / 20) * 100}%`;
 
     if (state.timeLeft === 5 && !state.timeAudioPlayed) {
       playSound('time');
@@ -571,11 +490,12 @@ function startTimer() {
       clearInterval(state.timerInterval);
       playSound('alert');
 
-      if (isFirebaseActive && (state.isHost || state.userName === state.activePlayerId)) {
+      // O Host gerencia a passagem do turno por estouro do tempo
+      if (isFirebaseActive && state.isHost) {
         passTurnToNextPlayer();
       }
     }
-  }, 1000);
+  }, 500);
 }
 
 function passTurnToNextPlayer() {
@@ -585,14 +505,19 @@ function passTurnToNextPlayer() {
   const nextIndex = (state.currentTurnIndex + 1) % totalPlayers;
   const nextPlayer = state.players[nextIndex];
 
+  // Desvira cartas não pareadas ao passar de turno
+  const updatedCards = state.cards.map(c => c.isMatched ? c : { ...c, isFlipped: false });
+
   db.ref(`rooms/${state.pin}`).update({
     currentTurnIndex: nextIndex,
-    activePlayerId: nextPlayer.name
+    activePlayerId: nextPlayer.name,
+    turnStartTime: Date.now(),
+    cards: updatedCards
   });
 }
 
 /* =========================================================
-   7. MULTIPLAYER E SINCRONIZAÇÃO EM TEMPO REAL
+   8. MULTIPLAYER E SINCRONIZAÇÃO EM TEMPO REAL
    ========================================================= */
 function startHostFlow() {
   state.isHost = true;
@@ -602,7 +527,7 @@ function startHostFlow() {
 function generateRoomAndPin() {
   const invalid = state.customPairs.some(p => !p.itemA.value.trim() || !p.itemB.value.trim());
   if (invalid) {
-    alert("Por favor, preencha todos os textos ou envie as imagens de todos os pares!");
+    alert("Por favor, preencha todos os campos dos pares!");
     return;
   }
 
@@ -617,6 +542,7 @@ function generateRoomAndPin() {
       activePlayerId: '',
       matchedPairsCount: 0,
       totalPairs: state.customPairs.length,
+      turnStartTime: 0,
       players: {}
     });
 
@@ -638,6 +564,11 @@ function listenRoomUpdates() {
     state.activePlayerId = room.activePlayerId || '';
     state.matchedPairsCount = room.matchedPairsCount || 0;
 
+    if (room.turnStartTime !== state.turnStartTime) {
+      state.turnStartTime = room.turnStartTime || 0;
+      syncTimer(state.turnStartTime);
+    }
+
     if (room.players) {
       const playersArray = Object.values(room.players);
       state.players = playersArray.sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
@@ -651,8 +582,8 @@ function listenRoomUpdates() {
         setScreen('teacher_dashboard');
       } else if (!state.isHost && state.currentScreen !== 'game') {
         setScreen('game');
-      } else if (!state.isHost && state.currentScreen === 'game') {
-        updateTurnHUD();
+      } else {
+        render(); // Re-renderiza para atualizar as cartas viradas e o ranking
       }
     } else if (room.status === 'waiting') {
       if (state.currentScreen === 'host_lobby' || state.currentScreen === 'student_lobby') {
@@ -671,7 +602,8 @@ function startMultiplayerGame() {
     db.ref('rooms/' + state.pin).update({
       status: 'playing',
       currentTurnIndex: 0,
-      activePlayerId: firstPlayer.name
+      activePlayerId: firstPlayer.name,
+      turnStartTime: Date.now()
     });
   }
 }
@@ -694,11 +626,9 @@ function joinRoom() {
   state.pin = pin;
   state.isHost = false;
   state.score = 0;
-  state.attempts = 0;
 
   if (isFirebaseActive) {
-    const playerRef = db.ref(`rooms/${pin}/players/${name}`);
-    playerRef.set({
+    db.ref(`rooms/${pin}/players/${name}`).set({
       name: name,
       avatar: state.avatarUrl,
       score: 0,
@@ -713,115 +643,100 @@ function joinRoom() {
   }
 }
 
-function updateTurnHUD() {
-  const isMyTurn = state.userName === state.activePlayerId;
-  const turnIndicator = document.getElementById('turn-indicator');
-  
-  if (turnIndicator) {
-    turnIndicator.innerText = isMyTurn ? "👉 SEU TURNO!" : `Aguardando: ${state.activePlayerId}`;
-  }
-
-  state.isLockBoard = !isMyTurn;
-}
-
 /* =========================================================
-   8. LÓGICA DO JOGO DA MEMÓRIA
+   9. LÓGICA SINCRONIZADA DO JOGO DA MEMÓRIA
    ========================================================= */
 function setupCards() {
   let cards = [];
   state.customPairs.forEach(p => {
-    cards.push({ pairId: p.id, type: p.itemA.type, val: p.itemA.value });
-    cards.push({ pairId: p.id, type: p.itemB.type, val: p.itemB.value });
+    cards.push({ pairId: p.id, type: p.itemA.type, val: p.itemA.value, isFlipped: false, isMatched: false });
+    cards.push({ pairId: p.id, type: p.itemB.type, val: p.itemB.value, isFlipped: false, isMatched: false });
   });
   state.cards = cards.sort(() => Math.random() - 0.5);
 }
 
 function flipCard(index) {
   if (state.isLockBoard) return;
-  
-  const cardElement = document.getElementById(`card-${index}`);
-  if (!cardElement || cardElement.classList.contains('flipped') || cardElement.classList.contains('matched')) return;
+  if (state.userName !== state.activePlayerId && isFirebaseActive) return; // Apenas o jogador do turno clica
+
+  const card = state.cards[index];
+  if (card.isFlipped || card.isMatched) return;
 
   playSound('click');
-  cardElement.classList.add('flipped');
 
-  const currentCard = state.cards[index];
-  if (currentCard.type === 'text') {
-    speakFrench(currentCard.val);
+  if (card.type === 'text') {
+    speakFrench(card.val);
   }
 
-  state.flippedCards.push({ index, pairId: currentCard.pairId });
+  // Atualiza no estado local e envia para o Firebase
+  state.cards[index].isFlipped = true;
 
-  if (state.flippedCards.length === 2) {
-    state.attempts += 1;
-    checkMatch();
+  if (isFirebaseActive) {
+    db.ref(`rooms/${state.pin}/cards`).set(state.cards);
+  }
+
+  const currentlyFlipped = state.cards.filter((c, i) => c.isFlipped && !c.isMatched);
+
+  if (currentlyFlipped.length === 2) {
+    checkMatch(currentlyFlipped);
   }
 }
 
-function checkMatch() {
+function checkMatch(flippedTwo) {
   state.isLockBoard = true;
-  const [card1, card2] = state.flippedCards;
+  const [card1, card2] = flippedTwo;
 
   if (card1.pairId === card2.pairId) {
     playSound('ok');
-    document.getElementById(`card-${card1.index}`).classList.add('matched');
-    document.getElementById(`card-${card2.index}`).classList.add('matched');
     
-    state.score += 1; // 1 par = 1 ponto
+    // Marca como matched no array
+    state.cards.forEach(c => {
+      if (c.pairId === card1.pairId) c.isMatched = true;
+    });
+
+    state.score += 1;
     state.matchedPairsCount += 1;
 
     if (isFirebaseActive) {
       db.ref(`rooms/${state.pin}/players/${state.userName}`).update({ score: state.score });
-      db.ref(`rooms/${state.pin}`).update({ matchedPairsCount: state.matchedPairsCount });
+      db.ref(`rooms/${state.pin}`).update({
+        cards: state.cards,
+        matchedPairsCount: state.matchedPairsCount,
+        turnStartTime: Date.now() // Reinicia o relógio em 20s para a nova jogada do mesmo jogador
+      });
     }
 
-    const scoreEl = document.getElementById('score-display');
-    if (scoreEl) scoreEl.innerText = `Seus Pares: ${state.score}`;
-
-    resetTurn();
+    state.isLockBoard = false;
 
     if (state.matchedPairsCount === state.customPairs.length) {
       clearInterval(state.timerInterval);
       if (isFirebaseActive) {
         db.ref(`rooms/${state.pin}`).update({ status: 'finished' });
-      } else {
-        setTimeout(() => setScreen('victory'), 600);
       }
-    } else {
-      // Se acertou, ganha uma nova chance e o tempo recomeça em 20s
-      startTimer();
     }
   } else {
     setTimeout(() => {
       playSound('falha');
-      document.getElementById(`card-${card1.index}`).classList.remove('flipped');
-      document.getElementById(`card-${card2.index}`).classList.remove('flipped');
-      resetTurn();
+      
+      // Desvira as duas cartas ativas
+      state.cards.forEach(c => {
+        if (!c.isMatched) c.isFlipped = false;
+      });
 
-      // Se errou, passa o turno para o próximo e o tempo recomeça em 20s
+      state.isLockBoard = false;
+
       if (isFirebaseActive) {
-        passTurnToNextPlayer();
-      } else {
-        startTimer();
+        passTurnToNextPlayer(); // Passa o turno e o próximo tempo inicia em 20s
       }
-    }, 1000);
+    }, 1200);
   }
 }
 
-function resetTurn() {
-  state.flippedCards = [];
-  state.isLockBoard = false;
-}
-
 /* =========================================================
-   9. GESTÃO DE PARES E RELATÓRIO
+   10. GESTÃO DE PARES E EXPORTAÇÃO DE RELATÓRIO
    ========================================================= */
 function addPair() {
-  state.customPairs.push({
-    id: Date.now(),
-    itemA: { type: 'text', value: '' },
-    itemB: { type: 'text', value: '' }
-  });
+  state.customPairs.push({ id: Date.now(), itemA: { type: 'text', value: '' }, itemB: { type: 'text', value: '' } });
   render();
 }
 
@@ -916,7 +831,6 @@ function generatePDFReport() {
         <h1>📊 Relatório da Aula - Francês</h1>
         <p><strong>PIN da Sala:</strong> ${state.pin}</p>
         <p><strong>Data:</strong> ${new Date().toLocaleDateString('pt-BR')}</p>
-        
         <table>
           <thead>
             <tr>
@@ -925,14 +839,9 @@ function generatePDFReport() {
               <th>Pares Encontrados</th>
             </tr>
           </thead>
-          <tbody>
-            ${rows}
-          </tbody>
+          <tbody>${rows}</tbody>
         </table>
-
-        <script>
-          window.onload = function() { window.print(); }
-        </script>
+        <script>window.onload = function() { window.print(); }</script>
       </body>
     </html>
   `;
@@ -948,7 +857,7 @@ function triggerConfetti() {
 }
 
 /* =========================================================
-   10. INICIALIZAÇÃO
+   11. INICIALIZAÇÃO
    ========================================================= */
 document.addEventListener('DOMContentLoaded', () => {
   render();
