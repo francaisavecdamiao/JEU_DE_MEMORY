@@ -3,85 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Jeu de Memory</title>
+  <title>Jeu de Mémorisation</title>
+  
+  <!-- Fontes do Google -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Arquivo de Estilos -->
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-  <div class="container">
-    
-    <!-- TELA 1: CONFIGURAÇÃO DE PERFIL DO JOGADOR -->
-    <main id="tela-perfil" class="card-perfil">
-      <h1>Jeu de Memory</h1>
-      <p class="subtitulo">Configure seu jogador para começar</p>
+  <!-- Container principal onde o script.js renderiza as telas -->
+  <div id="app"></div>
 
-      <form id="form-perfil" onsubmit="return false;">
-        <!-- Campo Nickname -->
-        <div class="grupo-input">
-          <label for="input-nickname">Nickname do Aluno:</label>
-          <input 
-            type="text" 
-            id="input-nickname" 
-            placeholder="Digite seu apelido..." 
-            maxlength="15"
-            required
-          >
-        </div>
-
-        <!-- Seleção de Personagem -->
-        <div class="grupo-input">
-          <label for="select-personagem">Personagem:</label>
-          <select id="select-personagem">
-            <option value="MARIE">Marie</option>
-            <option value="MATHIEU">Mathieu</option>
-          </select>
-        </div>
-
-        <!-- Seleção de Skin / Variação -->
-        <div class="grupo-input">
-          <label for="select-skin">Variação (Skin):</label>
-          <select id="select-skin">
-            <option value="padrao">Visual Padrão</option>
-            <option value="01">Roupa 01</option>
-            <option value="02">Roupa 02</option>
-          </select>
-        </div>
-
-        <!-- Preview da Imagem Escolhida -->
-        <div class="container-preview">
-          <span class="label-preview">Pré-visualização:</span>
-          <div class="box-preview">
-            <img id="avatar-preview" src="assets/MARIE.png" alt="Preview do Personagem">
-          </div>
-        </div>
-
-        <button type="button" id="btn-iniciar" class="btn-principal">Iniciar Jogo</button>
-      </form>
-    </main>
-
-    <!-- TELA 2: TABULEIRO DO JOGO DE MEMÓRIA (Aparece após iniciar) -->
-    <section id="tela-jogo" class="tela-jogo" style="display: none;">
-      
-      <!-- Cabeçalho HUD do Jogador -->
-      <header class="hud-jogador">
-        <div class="perfil-hud">
-          <img id="hud-avatar" src="" alt="Avatar do Jogador">
-          <span id="hud-nickname">Jogador</span>
-        </div>
-        <div class="info-partida">
-          <span>Tentativas: <strong id="contador-tentativas">0</strong></span>
-        </div>
-      </header>
-
-      <!-- Grade onde as cartas serão geradas -->
-      <div id="tabuleiro-cartas" class="tabuleiro">
-        <!-- Cartas serão injetadas via JavaScript -->
-      </div>
-
-    </section>
-
-  </div>
-
+  <!-- Arquivo de Lógica -->
   <script src="script.js"></script>
 </body>
 </html>
