@@ -1,262 +1,177 @@
-:root {
-  --bg: #F4F0EA;
-  --card-bg: #FFFFFF;
-  --purple: #6A4C93;
-  --purple-dark: #4A3368;
-  --blue: #1976D2;
-  --blue-dark: #115293;
-  --green: #2E7D32;
-  --green-dark: #1B5E20;
-  --red: #D32F2F;
-  --red-dark: #9A0007;
-  --text: #2D2A26;
-  --text-light: #6E6A66;
-  --border: #E2DCD5;
-  --radius-lg: 24px;
-  --radius-md: 16px;
-  --radius-sm: 10px;
-}
-
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 body {
-  background-color: var(--bg);
-  font-family: 'Nunito', sans-serif;
-  color: var(--text);
-  min-height: 100vh;
+  background-color: #eef2f5;
+  color: #333;
   display: flex;
   justify-content: center;
   align-items: center;
+  min-height: 100vh;
   padding: 20px;
 }
 
-#app {
+.container {
   width: 100%;
-  max-width: 500px;
+  max-width: 800px;
 }
 
-/* Card Principal */
-.card-box {
-  background: var(--card-bg);
-  border: 3px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 28px 20px;
+/* --- TELA DE PERFIL / SETUP --- */
+.card-perfil {
+  background: #ffffff;
+  padding: 30px;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  max-width: 420px;
+  margin: 0 auto;
   text-align: center;
-  box-shadow: 0 8px 0 var(--border);
 }
 
-.mascot {
-  font-size: 54px;
-  margin-bottom: 8px;
-}
-
-h2 {
-  font-family: 'Baloo 2', cursive;
-  font-size: 28px;
-  font-weight: 800;
-  color: var(--purple);
+.card-perfil h1 {
+  color: #2c3e50;
+  font-size: 1.8rem;
   margin-bottom: 6px;
 }
 
-h3 {
-  font-family: 'Baloo 2', cursive;
-  font-size: 18px;
-  margin-top: 14px;
+.subtitulo {
+  color: #7f8c8d;
+  font-size: 0.95rem;
+  margin-bottom: 24px;
 }
 
-/* Campos de Texto */
-.input-field {
-  width: 100%;
-  padding: 12px;
-  font-family: 'Nunito', sans-serif;
-  font-size: 15px;
-  font-weight: 700;
-  border: 2px solid var(--border);
-  border-radius: var(--radius-sm);
-  outline: none;
-  background: #FAF8F5;
-  text-align: center;
-}
-
-.input-field:focus {
-  border-color: var(--purple);
-  background: #FFF;
-}
-
-/* Botões 3D */
-.btn {
-  border: none;
-  border-radius: var(--radius-md);
-  padding: 14px 20px;
-  font-family: 'Baloo 2', cursive;
-  font-size: 18px;
-  font-weight: 800;
-  color: white;
-  cursor: pointer;
-  transition: transform 0.1s, box-shadow 0.1s;
-}
-
-.btn:active {
-  transform: translateY(4px);
-  box-shadow: 0 0 0 transparent !important;
-}
-
-.btn-block {
-  width: 100%;
-  display: block;
-}
-
-.btn-purple {
-  background: var(--purple);
-  box-shadow: 0 5px 0 var(--purple-dark);
-}
-
-.btn-blue {
-  background: var(--blue);
-  box-shadow: 0 5px 0 var(--blue-dark);
-}
-
-.btn-green {
-  background: var(--green);
-  box-shadow: 0 5px 0 var(--green-dark);
-}
-
-.btn-del {
-  background: var(--red);
-  box-shadow: 0 3px 0 var(--red-dark);
-  padding: 4px 10px;
-  font-size: 12px;
-  border-radius: 8px;
-}
-
-/* Criador de Pares */
-.pair-card {
-  background: var(--bg);
-  border: 2px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.pair-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-family: 'Baloo 2', cursive;
-  font-weight: 700;
-  font-size: 14px;
-  color: var(--text-light);
-}
-
-.pair-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-.item-box {
-  background: #fff;
-  border: 2px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.type-select {
-  font-family: 'Nunito', sans-serif;
-  font-weight: 700;
-  font-size: 12px;
-  padding: 6px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--bg);
-}
-
-.input-sm {
-  font-size: 13px;
-  padding: 8px;
-  border-radius: 8px;
+.grupo-input {
+  margin-bottom: 18px;
   text-align: left;
 }
 
-/* Upload Preview */
-.img-preview {
+.grupo-input label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #34495e;
+  margin-bottom: 6px;
+}
+
+.grupo-input input, 
+.grupo-input select {
   width: 100%;
-  height: 50px;
+  padding: 10px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.2s;
+  background-color: #f8fafc;
+}
+
+.grupo-input input:focus, 
+.grupo-input select:focus {
+  border-color: #3b82f6;
+  background-color: #ffffff;
+}
+
+/* Preview do Avatar */
+.container-preview {
+  margin: 20px 0;
+}
+
+.label-preview {
+  display: block;
+  font-size: 0.85rem;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+
+.box-preview {
+  width: 130px;
+  height: 130px;
+  margin: 0 auto;
+  border: 2px dashed #cbd5e1;
+  border-radius: 12px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #f8fafc;
+  overflow: hidden;
+}
+
+.box-preview img {
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
-  border-radius: 6px;
-  background: #f0f0f0;
-  border: 1px solid var(--border);
 }
 
-/* =========================================================
-   MECANISMO DA CARTA (VIRADA / FLIP 3D)
-   ========================================================= */
-.memory-card {
-  aspect-ratio: 1;
-  perspective: 1000px;
+/* Botão Principal */
+.btn-principal {
+  width: 100%;
+  padding: 12px;
+  background-color: #2563eb;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
   cursor: pointer;
+  transition: background-color 0.2s;
 }
 
-.card-inner {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  text-align: center;
-  transition: transform 0.5s;
-  transform-style: preserve-3d;
+.btn-principal:hover {
+  background-color: #1d4ed8;
 }
 
-/* Quando clicada/virada */
-.memory-card.flipped .card-inner,
-.memory-card.matched .card-inner {
-  transform: rotateY(180deg);
+/* --- TELA DO JOGO / HUD --- */
+.tela-jogo {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
-/* Verso e Frente da Carta */
-.card-front, .card-back {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
-  border-radius: var(--radius-sm);
+.hud-jogador {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #ffffff;
+  padding: 12px 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.perfil-hud {
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 6px;
-  word-break: break-word;
+  gap: 12px;
 }
 
-/* VERSO (Virada para baixo - Escondida) */
-.card-back {
-  background: var(--purple);
-  box-shadow: 0 4px 0 var(--purple-dark);
-  color: white;
-  font-size: 24px;
+.perfil-hud img {
+  width: 45px;
+  height: 45px;
+  border-radius: 50%;
+  border: 2px solid #2563eb;
+  object-fit: cover;
+  background-color: #f1f5f9;
 }
 
-/* FRENTE (Revelada ao clicar) */
-.card-front {
-  background: white;
-  border: 2px solid var(--purple);
-  box-shadow: 0 4px 0 var(--purple-dark);
-  transform: rotateY(180deg);
-  color: var(--text);
-  font-weight: 800;
-  font-size: 14px;
+.perfil-hud span {
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: #1e293b;
 }
 
-.card-front img {
-  max-width: 90%;
-  max-height: 90%;
-  object-fit: contain;
+.info-partida {
+  font-size: 1rem;
+  color: #475569;
+}
+
+/* Tabuleiro */
+.tabuleiro {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  max-width: 600px;
+  margin: 0 auto;
+  width: 100%;
 }
