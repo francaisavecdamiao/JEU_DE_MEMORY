@@ -8,6 +8,7 @@ const state = {
   selectedChar: 'MARIE',
   selectedSkin: 'padrao',
   avatarUrl: 'assets/MARIE.png',
+  score: 0,
   isHost: false,
   players: [
     { name: 'Professor (Você)', score: 0, isHost: true }
@@ -79,7 +80,6 @@ function renderHostCreate() {
         ${state.customPairs.length > 2 ? `<button class="btn btn-del" onclick="removePair(${p.id})">Excluir</button>` : ''}
       </div>
       <div class="pair-grid">
-        <!-- Lado A -->
         <div class="item-box">
           <select class="type-select" onchange="updateItemType(${p.id}, 'itemA', this.value)">
             <option value="text" ${p.itemA.type === 'text' ? 'selected' : ''}>Texto</option>
@@ -92,7 +92,6 @@ function renderHostCreate() {
           }
         </div>
 
-        <!-- Lado B -->
         <div class="item-box">
           <select class="type-select" onchange="updateItemType(${p.id}, 'itemB', this.value)">
             <option value="text" ${p.itemB.type === 'text' ? 'selected' : ''}>Texto</option>
@@ -168,11 +167,10 @@ function renderStudentJoin() {
         <input type="text" id="student-name" class="input-field" placeholder="Seu Nickname / Apelido" value="${state.userName}">
         <input type="number" id="student-pin" class="input-field" placeholder="PIN da Sala (6 dígitos)" value="${state.pin}">
         
-        <!-- SELEÇÃO DE PERSONAGEM E SKIN -->
         <div class="avatar-selection-box">
           <div style="width:100%; text-align:left;">
             <label style="font-weight:700; font-size:13px; color:var(--text-light);">Escolha seu Personagem:</label>
-            <select id="select-char" class="input-field" style="margin-top:4px;" onchange="updateAvatarPreview()">
+            <select id="select-char" class="input-field" style="margin-top:4px;" onchange="updateAvatarDOM()">
               <option value="MARIE" ${state.selectedChar === 'MARIE' ? 'selected' : ''}>Marie</option>
               <option value="MATHIEU" ${state.selectedChar === 'MATHIEU' ? 'selected' : ''}>Mathieu</option>
             </select>
@@ -180,7 +178,7 @@ function renderStudentJoin() {
 
           <div style="width:100%; text-align:left;">
             <label style="font-weight:700; font-size:13px; color:var(--text-light);">Escolha a Variação (Skin):</label>
-            <select id="select-skin" class="input-field" style="margin-top:4px;" onchange="updateAvatarPreview()">
+            <select id="select-skin" class="input-field" style="margin-top:4px;" onchange="updateAvatarDOM()">
               <option value="padrao" ${state.selectedSkin === 'padrao' ? 'selected' : ''}>Visual Padrão</option>
               <option value="01" ${state.selectedSkin === '01' ? 'selected' : ''}>Roupa 01</option>
               <option value="02" ${state.selectedSkin === '02' ? 'selected' : ''}>Roupa 02</option>
@@ -188,7 +186,7 @@ function renderStudentJoin() {
           </div>
 
           <div class="avatar-preview-container">
-            <img id="avatar-img-preview" src="${state.avatarUrl}" alt="Preview Personagem">
+            <img id="avatar-img-preview" src="${state.avatarUrl}" alt="Preview Personagem" onerror="this.src='https://via.placeholder.com/90?text=Avatar'">
           </div>
         </div>
 
@@ -202,8 +200,8 @@ function renderStudentJoin() {
   `;
 }
 
-// Atualiza o caminho da imagem de pré-visualização do avatar
-function updateAvatarPreview() {
+// Atualiza o DOM do avatar sem chamar a função render() novamente
+function updateAvatarDOM() {
   const char = document.getElementById('select-char').value;
   const skin = document.getElementById('select-skin').value;
 
@@ -217,17 +215,16 @@ function updateAvatarPreview() {
   }
 
   const imgEl = document.getElementById('avatar-img-preview');
-  if (imgEl) imgEl.src = state.avatarUrl;
+  if (imgEl) {
+    imgEl.src = state.avatarUrl;
+  }
 }
 
-// TABULEIRO DO ALUNO COM AS CARTAS ESCONDIDAS
 function renderGame() {
   const cardsGrid = state.cards.map((c, index) => `
     <div class="memory-card" id="card-${index}" onclick="flipCard(${index})">
       <div class="card-inner">
-        <!-- VERSO ESCONDIDO DA CARTA -->
         <div class="card-back">❓</div>
-        <!-- FRENTE REVELADA DA CARTA -->
         <div class="card-front">
           ${c.type === 'image' ? `<img src="${c.val}" alt="imagem">` : `<span>${c.val}</span>`}
         </div>
@@ -237,17 +234,16 @@ function renderGame() {
 
   return `
     <div class="card-box" style="max-width:600px;">
-      <!-- HUD DO JOGADOR -->
       <div class="player-hud">
         <div class="player-info">
-          <img src="${state.avatarUrl}" class="hud-avatar" alt="Avatar">
+          <img src="${state.avatarUrl}" class="hud-avatar" alt="Avatar" onerror="this.src='https://via.placeholder.com/40?text=A'">
           <span class="hud-nickname">${state.userName || 'Jogador'}</span>
         </div>
         <span style="font-weight:700; color:var(--purple);">PIN: ${state.pin}</span>
       </div>
 
       <div style="display:flex; justify-content:flex-end; align-items:center; margin-bottom:12px;">
-        <span style="font-weight:700; color:var(--green);" id="score-display">Pontos: 0</span>
+        <span style="font-weight:700; color:var(--green);" id="score-display">Pontos: ${state.score}</span>
       </div>
 
       <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px;">
@@ -344,17 +340,28 @@ function joinRoom() {
   state.userName = name;
   state.pin = pin;
   state.isHost = false;
+
+  // Garante a geração de cartas caso entre sem ser pelo fluxo do professor
+  if (state.cards.length === 0) {
+    let cards = [];
+    state.customPairs.forEach(p => {
+      cards.push({ pairId: p.id, type: p.itemA.type, val: p.itemA.value });
+      cards.push({ pairId: p.id, type: p.itemB.type, val: p.itemB.value });
+    });
+    state.cards = cards.sort(() => Math.random() - 0.5);
+  }
+
   setScreen('game');
 }
 
 /* =========================================================
-   5. LÓGICA DE JOGO DA MEMÓRIA (VIRAR E COMPARAR CARTAS)
+   5. LÓGICA DE JOGO DA MEMÓRIA
    ========================================================= */
 function flipCard(index) {
   if (state.isLockBoard) return;
   
   const cardElement = document.getElementById(`card-${index}`);
-  if (cardElement.classList.contains('flipped') || cardElement.classList.contains('matched')) return;
+  if (!cardElement || cardElement.classList.contains('flipped') || cardElement.classList.contains('matched')) return;
 
   cardElement.classList.add('flipped');
   state.flippedCards.push({ index, pairId: state.cards[index].pairId });
@@ -371,6 +378,9 @@ function checkMatch() {
   if (card1.pairId === card2.pairId) {
     document.getElementById(`card-${card1.index}`).classList.add('matched');
     document.getElementById(`card-${card2.index}`).classList.add('matched');
+    state.score += 10;
+    const scoreEl = document.getElementById('score-display');
+    if (scoreEl) scoreEl.innerText = `Pontos: ${state.score}`;
     resetTurn();
   } else {
     setTimeout(() => {
