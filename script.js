@@ -498,21 +498,57 @@ function syncTimer(turnStartTime) {
   }, 500);
 }
 
+// ---------------------------------------------------------------------
+// BUGFIX: passagem de turno agora é uma TRANSAÇÃO ATÔMICA do Firebase.
+//
+// Antes, esta função calculava o "próximo jogador" e os "cards atualizados"
+// usando o estado LOCAL (state.currentTurnIndex / state.cards), que podia
+// estar desatualizado. Isso causava uma race condition real:
+//   1) O jogador ativo erra um par -> depois de 1200ms chama passTurnToNextPlayer().
+//   2) Quase ao mesmo tempo, o cronômetro do HOST chega a 0 -> ele também
+//      chama passTurnToNextPlayer() (independentemente).
+//   3) As duas chamadas partem de um "currentTurnIndex" e "cards" locais
+//      que podem não refletir o que já foi gravado pela outra chamada.
+//      Resultado: o turno "volta" para o mesmo jogador (ele continua
+//      jogando até o tempo acabar de novo) e pares recém-acertados podem
+//      ser sobrescritos por uma foto antiga do baralho (parece que o
+//      "baralho reiniciou").
+//
+// Com transaction(), o Firebase sempre lê o valor MAIS RECENTE gravado no
+// servidor no momento da escrita e, se algo mudar no meio do caminho,
+// executa a função de novo automaticamente. Assim as duas chamadas nunca
+// se pisam: a segunda sempre enxerga o resultado da primeira e avança
+// corretamente para o jogador seguinte, sem nunca desfazer pares já
+// acertados.
+// ---------------------------------------------------------------------
+let turnPassInFlight = false;
+
 function passTurnToNextPlayer() {
-  if (!isFirebaseActive || !state.pin || state.players.length === 0) return;
+  if (!isFirebaseActive || !state.pin || turnPassInFlight) return;
+  turnPassInFlight = true;
 
-  const totalPlayers = state.players.length;
-  const nextIndex = (state.currentTurnIndex + 1) % totalPlayers;
-  const nextPlayer = state.players[nextIndex];
+  db.ref(`rooms/${state.pin}`).transaction((room) => {
+    if (!room) return room;
 
-  // Desvira cartas não pareadas ao passar de turno
-  const updatedCards = state.cards.map(c => c.isMatched ? c : { ...c, isFlipped: false });
+    const playersList = room.players
+      ? Object.values(room.players).sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0))
+      : [];
+    if (playersList.length === 0) return room;
 
-  db.ref(`rooms/${state.pin}`).update({
-    currentTurnIndex: nextIndex,
-    activePlayerId: nextPlayer.name,
-    turnStartTime: Date.now(),
-    cards: updatedCards
+    const nextIndex = ((room.currentTurnIndex || 0) + 1) % playersList.length;
+    const nextPlayer = playersList[nextIndex];
+
+    // Sempre parte dos cards mais recentes do SERVIDOR (não do state local),
+    // e nunca desfaz pares já marcados como isMatched.
+    const serverCards = room.cards || state.cards;
+    room.cards = serverCards.map(c => (c.isMatched ? c : { ...c, isFlipped: false }));
+    room.currentTurnIndex = nextIndex;
+    room.activePlayerId = nextPlayer ? nextPlayer.name : room.activePlayerId;
+    room.turnStartTime = Date.now();
+
+    return room;
+  }, () => {
+    turnPassInFlight = false;
   });
 }
 
@@ -668,23 +704,33 @@ function flipCard(index) {
     speakFrench(card.val);
   }
 
-  // Atualiza no estado local e envia para o Firebase
+  // Atualiza no estado local
   state.cards[index].isFlipped = true;
-
-  if (isFirebaseActive) {
-    db.ref(`rooms/${state.pin}/cards`).set(state.cards);
-  }
 
   const currentlyFlipped = state.cards.filter((c, i) => c.isFlipped && !c.isMatched);
 
   if (currentlyFlipped.length === 2) {
+    // checkMatch cuida de enviar o estado ao Firebase (evita gravação duplicada/concorrente)
     checkMatch(currentlyFlipped);
+  } else if (isFirebaseActive) {
+    // Apenas 1 carta virada até agora: sincroniza já, para os espectadores verem sem atraso.
+    // IMPORTANTE: sempre gravar em rooms/{pin} (nunca em um sub-caminho separado como
+    // rooms/{pin}/cards), para não haver duas gravações concorrentes brigando pelo
+    // mesmo dado e causando atraso/flicker para quem está assistindo.
+    db.ref(`rooms/${state.pin}`).update({ cards: state.cards });
   }
 }
 
 function checkMatch(flippedTwo) {
   state.isLockBoard = true;
   const [card1, card2] = flippedTwo;
+
+  if (isFirebaseActive) {
+    // Mostra as 2 cartas reveladas para TODOS imediatamente (sem esperar o resultado
+    // do match nem o delay de 1200ms do erro). Isso é o que corrige o atraso que os
+    // espectadores viam antes de a carta aparecer virada.
+    db.ref(`rooms/${state.pin}`).update({ cards: state.cards });
+  }
 
   if (card1.pairId === card2.pairId) {
     playSound('ok');
