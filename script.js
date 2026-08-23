@@ -10,12 +10,34 @@ const sounds = {
 function playSound(name) {
   if (sounds[name]) {
     sounds[name].currentTime = 0;
-    sounds[name].play().catch(() => {}); // Evita bloqueio do navegador antes da primeira interação
+    sounds[name].play().catch(() => {});
   }
 }
 
 /* =========================================================
-   2. ESTADO GLOBAL DA APLICAÇÃO
+   2. CONFIGURAÇÃO E CONEXÃO COM O FIREBASE
+   ========================================================= */
+const firebaseConfig = {
+  apiKey: "SUA_API_KEY_AQUI",
+  authDomain: "SEU_PROJETO.firebaseapp.com",
+  databaseURL: "https://SEU_PROJETO-default-rtdb.firebaseio.com",
+  projectId: "SEU_PROJETO",
+  storageBucket: "SEU_PROJETO.appspot.com",
+  messagingSenderId: "123456789",
+  appId: "1:123456789:web:abcdef"
+};
+
+// Inicializa Firebase se configurado
+let db = null;
+try {
+  if (firebaseConfig.apiKey !== "SUA_API_KEY_AQUI") {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.database();
+  }
+} catch(e) { console.warn("Firebase não configurado ainda."); }
+
+/* =========================================================
+   3. ESTADO GLOBAL DA APLICAÇÃO
    ========================================================= */
 const state = {
   currentScreen: 'home',
@@ -26,11 +48,11 @@ const state = {
   avatarUrl: 'assets/MARIE.png',
   score: 0,
   attempts: 0,
+  timeLeft: 30,
+  timerInterval: null,
   matchedPairsCount: 0,
   isHost: false,
-  players: [
-    { name: 'Professor (Você)', score: 0, isHost: true }
-  ],
+  players: [],
   customPairs: [
     { id: 1, itemA: { type: 'text', value: 'Bonjour' }, itemB: { type: 'text', value: 'Olá' } },
     { id: 2, itemA: { type: 'text', value: 'Merci' }, itemB: { type: 'text', value: 'Obrigado' } }
@@ -40,7 +62,6 @@ const state = {
   isLockBoard: false
 };
 
-// Ajusta URL inicial do Avatar
 if (state.selectedSkin === 'padrao') {
   state.avatarUrl = `assets/${state.selectedChar}.png`;
 } else {
@@ -48,7 +69,7 @@ if (state.selectedSkin === 'padrao') {
 }
 
 /* =========================================================
-   3. GERENCIADOR DE RENDERIZAÇÃO
+   4. RENDERIZAÇÃO
    ========================================================= */
 function setScreen(screenName) {
   state.currentScreen = screenName;
@@ -74,6 +95,7 @@ function render() {
       break;
     case 'game':
       app.innerHTML = renderGame();
+      startTimer();
       break;
     case 'victory':
       app.innerHTML = renderVictory();
@@ -85,7 +107,7 @@ function render() {
 }
 
 /* =========================================================
-   4. TELAS
+   5. TELAS DA APLICAÇÃO
    ========================================================= */
 function renderHome() {
   return `
@@ -140,8 +162,13 @@ function renderHostCreate() {
     <div class="card-box">
       <div class="mascot">🎓</div>
       <h2>Criar Jogo da Memória</h2>
-      <p style="color:var(--text-light); margin-bottom:12px;">Cadastre os pares do jogo:</p>
       
+      <div style="display:flex; gap:10px; margin-bottom:14px;">
+        <button class="btn btn-blue" style="font-size:12px; padding:8px; flex:1;" onclick="exportPairsJSON()">💾 Exportar Jogo (.JSON)</button>
+        <button class="btn btn-purple" style="font-size:12px; padding:8px; flex:1;" onclick="document.getElementById('import-file').click()">📂 Importar Jogo</button>
+        <input type="file" id="import-file" accept=".json" style="display:none;" onchange="importPairsJSON(this)">
+      </div>
+
       <div style="display:flex; flex-direction:column; gap:12px;">
         ${pairsHtml}
       </div>
@@ -161,7 +188,7 @@ function renderHostCreate() {
 function renderHostLobby() {
   const playerList = state.players.map(p => `
     <li style="background:white; padding:8px 12px; border-radius:8px; margin-bottom:6px; font-weight:700;">
-      ${p.isHost ? '🎓' : '👤'} ${p.name}
+      👤 ${p.name}
     </li>
   `).join('');
 
@@ -176,12 +203,12 @@ function renderHostLobby() {
 
       <h3>Alunos Conectados (${state.players.length}):</h3>
       <ul style="list-style:none; padding:0; text-align:left; max-height:150px; overflow-y:auto;">
-        ${playerList}
+        ${playerList.length > 0 ? playerList : '<li style="color:#aaa;">Aguardando alunos entrarem...</li>'}
       </ul>
     </div>
 
     <div style="margin-top:16px;">
-      <button class="btn btn-green btn-block" onclick="playSound('click'); setScreen('game');">🚀 Iniciar Jogo Agora</button>
+      <button class="btn btn-green btn-block" onclick="playSound('click'); startMultiplayerGame();">🚀 Iniciar Jogo Agora</button>
     </div>
   `;
 }
@@ -242,7 +269,6 @@ function updateAvatarDOM() {
     state.avatarUrl = `assets/${char}${skin}.png`;
   }
 
-  // Salva escolhas de personagem no LocalStorage
   localStorage.setItem('jeu_char', char);
   localStorage.setItem('jeu_skin', skin);
 
@@ -272,8 +298,12 @@ function renderGame() {
         <span style="font-weight:700; color:var(--purple);">PIN: ${state.pin}</span>
       </div>
 
+      <div class="timer-container">
+        <div class="timer-bar" id="timer-bar"></div>
+      </div>
+
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <span style="font-weight:700; color:var(--text-light);" id="attempts-display">Tentativas: ${state.attempts}</span>
+        <span style="font-weight:700; color:var(--red);" id="timer-text">⏱️ 30s</span>
         <span style="font-weight:700; color:var(--green);" id="score-display">Pontos: ${state.score}</span>
       </div>
 
@@ -287,9 +317,9 @@ function renderGame() {
 function renderVictory() {
   return `
     <div class="card-box">
-      <div class="mascot">🏆</div>
-      <h2>Félicitations!</h2>
-      <p style="color:var(--text-light)">Você completou o jogo da memória!</p>
+      <div class="mascot">${state.matchedPairsCount === state.customPairs.length ? '🏆' : '⏳'}</div>
+      <h2>${state.matchedPairsCount === state.customPairs.length ? 'Félicitations!' : 'Temps Écoule!'}</h2>
+      <p style="color:var(--text-light)">Fim da partida!</p>
 
       <div class="winner-podium">
         <div class="winner-avatar-frame">
@@ -316,11 +346,156 @@ function renderVictory() {
 }
 
 /* =========================================================
-   5. FUNÇÕES DE CADASTRO E SALVAMENTO
+   6. LÓGICA DO TIMER (30 SEGUNDOS)
+   ========================================================= */
+function startTimer() {
+  clearInterval(state.timerInterval);
+  state.timeLeft = 30;
+
+  state.timerInterval = setInterval(() => {
+    state.timeLeft -= 1;
+    
+    const timerText = document.getElementById('timer-text');
+    const timerBar = document.getElementById('timer-bar');
+
+    if (timerText) timerText.innerText = `⏱️ ${state.timeLeft}s`;
+    if (timerBar) {
+      const percentage = (state.timeLeft / 30) * 100;
+      timerBar.style.width = `${percentage}%`;
+    }
+
+    if (state.timeLeft <= 0) {
+      clearInterval(state.timerInterval);
+      playSound('falha');
+      setScreen('victory');
+    }
+  }, 1000);
+}
+
+/* =========================================================
+   7. EXPORTAR / IMPORTAR CONJUNTOS DE PARES (JSON)
+   ========================================================= */
+function exportPairsJSON() {
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.customPairs, null, 2));
+  const downloadAnchor = document.createElement('a');
+  downloadAnchor.setAttribute("href", dataStr);
+  downloadAnchor.setAttribute("download", `jogo_memoria_pares.json`);
+  document.body.appendChild(downloadAnchor);
+  downloadAnchor.click();
+  downloadAnchor.remove();
+}
+
+function importPairsJSON(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    try {
+      const importedPairs = JSON.parse(e.target.result);
+      if (Array.isArray(importedPairs)) {
+        state.customPairs = importedPairs;
+        render();
+        alert("Jogo importado com sucesso!");
+      }
+    } catch (err) {
+      alert("Arquivo JSON inválido.");
+    }
+  };
+  reader.readAsText(file);
+}
+
+/* =========================================================
+   8. INTEGRAÇÃO MULTIPLAYER FIREBASE
    ========================================================= */
 function startHostFlow() {
   state.isHost = true;
   setScreen('host_create');
+}
+
+function generateRoomAndPin() {
+  const invalid = state.customPairs.some(p => !p.itemA.value.trim() || !p.itemB.value.trim());
+  if (invalid) {
+    alert("Por favor, preencha todos os textos ou envie as imagens de todos os pares!");
+    return;
+  }
+
+  state.pin = Math.floor(100000 + Math.random() * 900000).toString();
+  setupCards();
+
+  if (db) {
+    db.ref('rooms/' + state.pin).set({
+      status: 'waiting',
+      cards: state.cards,
+      players: {}
+    });
+
+    db.ref(`rooms/${state.pin}/players`).on('value', (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        state.players = Object.values(data);
+        if (state.currentScreen === 'host_lobby') render();
+      }
+    });
+  }
+
+  setScreen('host_lobby');
+}
+
+function startMultiplayerGame() {
+  if (db) {
+    db.ref('rooms/' + state.pin).update({ status: 'playing' });
+  }
+  setScreen('game');
+}
+
+function joinRoom() {
+  const nameInput = document.getElementById('student-name');
+  const pinInput = document.getElementById('student-pin');
+
+  const name = nameInput ? nameInput.value.trim() : '';
+  const pin = pinInput ? pinInput.value.trim() : '';
+
+  if (!name || !pin) {
+    alert("Preencha seu Nickname e o PIN correto!");
+    return;
+  }
+
+  localStorage.setItem('jeu_nickname', name);
+
+  state.userName = name;
+  state.pin = pin;
+  state.isHost = false;
+  state.score = 0;
+  state.attempts = 0;
+  state.matchedPairsCount = 0;
+
+  if (db) {
+    const playerRef = db.ref(`rooms/${pin}/players/${name}`);
+    playerRef.set({ name: name, avatar: state.avatarUrl, score: 0 });
+
+    db.ref(`rooms/${pin}`).on('value', (snapshot) => {
+      const room = snapshot.val();
+      if (room) {
+        state.cards = room.cards;
+        if (room.status === 'playing' && state.currentScreen !== 'game') {
+          setScreen('game');
+        }
+      }
+    });
+  } else {
+    setupCards();
+    setScreen('game');
+  }
+}
+
+function setupCards() {
+  let cards = [];
+  state.customPairs.forEach(p => {
+    cards.push({ pairId: p.id, type: p.itemA.type, val: p.itemA.value });
+    cards.push({ pairId: p.id, type: p.itemB.type, val: p.itemB.value });
+  });
+  state.cards = cards.sort(() => Math.random() - 0.5);
 }
 
 function addPair() {
@@ -348,9 +523,7 @@ function updateItemType(id, itemKey, type) {
 
 function updateItemValue(id, itemKey, value) {
   const pair = state.customPairs.find(p => p.id === id);
-  if (pair) {
-    pair[itemKey].value = value;
-  }
+  if (pair) pair[itemKey].value = value;
 }
 
 function handleImageUpload(id, itemKey, input) {
@@ -368,56 +541,6 @@ function handleImageUpload(id, itemKey, input) {
   reader.readAsDataURL(file);
 }
 
-function generateRoomAndPin() {
-  const invalid = state.customPairs.some(p => !p.itemA.value.trim() || !p.itemB.value.trim());
-  if (invalid) {
-    alert("Por favor, preencha todos os textos ou envie as imagens de todos os pares!");
-    return;
-  }
-
-  state.pin = Math.floor(100000 + Math.random() * 900000).toString();
-  setupCards();
-  setScreen('host_lobby');
-}
-
-function joinRoom() {
-  const nameInput = document.getElementById('student-name');
-  const pinInput = document.getElementById('student-pin');
-
-  const name = nameInput ? nameInput.value.trim() : '';
-  const pin = pinInput ? pinInput.value.trim() : '';
-
-  if (!name || !pin) {
-    alert("Preencha seu Nickname e o PIN correto!");
-    return;
-  }
-
-  // Persiste Nickname no localStorage
-  localStorage.setItem('jeu_nickname', name);
-
-  state.userName = name;
-  state.pin = pin;
-  state.isHost = false;
-  state.score = 0;
-  state.attempts = 0;
-  state.matchedPairsCount = 0;
-
-  if (state.cards.length === 0) {
-    setupCards();
-  }
-
-  setScreen('game');
-}
-
-function setupCards() {
-  let cards = [];
-  state.customPairs.forEach(p => {
-    cards.push({ pairId: p.id, type: p.itemA.type, val: p.itemA.value });
-    cards.push({ pairId: p.id, type: p.itemB.type, val: p.itemB.value });
-  });
-  state.cards = cards.sort(() => Math.random() - 0.5);
-}
-
 function restartGame() {
   state.score = 0;
   state.attempts = 0;
@@ -427,7 +550,7 @@ function restartGame() {
 }
 
 /* =========================================================
-   6. LÓGICA DE JOGO DA MEMÓRIA
+   9. LÓGICA DE JOGO DA MEMÓRIA
    ========================================================= */
 function flipCard(index) {
   if (state.isLockBoard) return;
@@ -441,9 +564,6 @@ function flipCard(index) {
 
   if (state.flippedCards.length === 2) {
     state.attempts += 1;
-    const attEl = document.getElementById('attempts-display');
-    if (attEl) attEl.innerText = `Tentativas: ${state.attempts}`;
-
     checkMatch();
   }
 }
@@ -453,7 +573,6 @@ function checkMatch() {
   const [card1, card2] = state.flippedCards;
 
   if (card1.pairId === card2.pairId) {
-    // ACERTOU
     playSound('ok');
     document.getElementById(`card-${card1.index}`).classList.add('matched');
     document.getElementById(`card-${card2.index}`).classList.add('matched');
@@ -466,14 +585,11 @@ function checkMatch() {
 
     resetTurn();
 
-    // VERIFICA VITÓRIA
     if (state.matchedPairsCount === state.customPairs.length) {
-      setTimeout(() => {
-        setScreen('victory');
-      }, 600);
+      clearInterval(state.timerInterval);
+      setTimeout(() => setScreen('victory'), 600);
     }
   } else {
-    // ERROU
     setTimeout(() => {
       playSound('falha');
       document.getElementById(`card-${card1.index}`).classList.remove('flipped');
@@ -490,11 +606,7 @@ function resetTurn() {
 
 function triggerConfetti() {
   if (typeof confetti === 'function') {
-    confetti({
-      particleCount: 100,
-      spread: 70,
-      origin: { y: 0.6 }
-    });
+    confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
   }
 }
 
